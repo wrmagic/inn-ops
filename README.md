@@ -32,6 +32,8 @@ completely on its own: its own website, its own database and its own logins.
   location is tonight, what's coming up, and money still owed.
 - **Guests** and **Events**: a profile for each guest with all their stays; each event lists its reservations and
   has an "Add a reservation" link that fills in the event, dates and location.
+- **Lists in pages**: the Reservations and Guests lists show 20 at a time, with Previous / Next and Show 20, 50, 100
+  or All at the bottom. Your choice is remembered for each list on that computer.
 - **Reports**: arrivals and departures for a date range, and a house list (who's in every room on a night). All print.
 - **Phone version** (`/m`, or **Phone version** at the bottom of the menu): today's arrivals, departures and who's
   staying, with big Check in and Check out buttons; flip to other days with ‹ ›; **Coming up** (the next two weeks);

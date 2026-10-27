@@ -6,6 +6,7 @@ const { layout, bare, csrfField, field, input, textarea, select, guestPicker, pa
 const { str, int, arr, own, now, isDate, isTime, addDays, todayIn } = require('../lib/common');
 const { HttpError } = require('../lib/http');
 const R = require('../lib/res');
+const { paging } = require('../lib/paging');
 
 const METHODS = [['cash', 'Cash'], ['check', 'Check'], ['card', 'Card'], ['zelle', 'Zelle'], ['venmo', 'Venmo'], ['paypal', 'PayPal'], ['other', 'Other']];
 const METHOD = Object.fromEntries(METHODS);
@@ -28,7 +29,9 @@ module.exports = (r, { db }) => {
     const term = String(q.q || '').trim();
     if (term) { const like = `%${term.toLowerCase()}%`; where.push(`(r.id IN (SELECT r2.id FROM reservations r2 JOIN guests g ON g.id=r2.guest_id WHERE lower(COALESCE(g.first,'')||' '||COALESCE(g.last,'')||' '||COALESCE(g.org_name,'')) LIKE ?)
       OR r.event_id IN (SELECT id FROM events WHERE lower(name) LIKE ?) OR r.id IN (SELECT reservation_id FROM reservation_rooms WHERE lower(COALESCE(occupants,'')) LIKE ?) OR CAST(r.id AS TEXT)=?)`); args.push(like, like, like, term.replace(/^#/, '')); }
-    const rows = db.all(`SELECT r.* FROM reservations r WHERE ${where.join(' AND ')} ORDER BY r.arrive ${when === 'past' ? 'DESC' : ''}, r.id LIMIT 500`, ...args);
+    const total = db.get(`SELECT COUNT(*) n FROM reservations r WHERE ${where.join(' AND ')}`, ...args).n;
+    const pg = paging(ctx, 'reservations', total);
+    const rows = db.all(`SELECT r.* FROM reservations r WHERE ${where.join(' AND ')} ORDER BY r.arrive ${when === 'past' ? 'DESC' : ''}, r.id LIMIT ? OFFSET ?`, ...args, pg.limit, pg.offset);
     const qs = (o) => `?${new URLSearchParams(Object.fromEntries(Object.entries({ when, location: loc || '', status: q.status || '', q: term, ...o }).filter(([, v]) => v !== '')))}`;
     ctx.html(layout(ctx, { title: 'Reservations', body: html`${pageHead('Reservations', html`<a class="btn primary" href="/reservations/new">New reservation</a>`)}
       <nav class="tabs">${[['upcoming', 'Upcoming'], ['here', 'Staying now'], ['past', 'Past'], ['all', 'All']].map(([v, l]) => html`<a href="${qs({ when: v })}" class="${when === v ? 'on' : ''}">${l}</a>`)}</nav>
@@ -41,7 +44,7 @@ module.exports = (r, { db }) => {
         ${rows.map((x) => { const t = R.totals(db, x, ctx.settings); const ev = x.event_id && db.get('SELECT name FROM events WHERE id=?', x.event_id); const loc0 = db.get('SELECT * FROM locations WHERE id=?', x.location_id);
           return html`<tr class="${x.status === 'cancelled' ? 'struck' : ''}"><td><span class="dot" style="background:${R.locColor(loc0)}"></span><a href="/reservations/${x.id}"><b>${R.guestName(guestOf(x))}</b></a></td>
             <td>${dateFmt(x.arrive, 'dow')} – ${dateFmt(x.depart, 'dow')} <small class="muted">${R.nightsLabel(t.nights)}</small></td><td>${R.whereLine(db, x)}</td><td>${ev ? ev.name : ''}</td>
-            <td>${badge(R.STATUS[x.status].label, R.STATUS[x.status].badge)}</td><td class="num ${t.balance > 0 && x.status !== 'cancelled' ? 'due' : ''}">${x.status === 'cancelled' ? '' : money(t.balance)}</td></tr>`; })}</tbody></table></section>`
+            <td>${badge(R.STATUS[x.status].label, R.STATUS[x.status].badge)}</td><td class="num ${t.balance > 0 && x.status !== 'cancelled' ? 'due' : ''}">${x.status === 'cancelled' ? '' : money(t.balance)}</td></tr>`; })}</tbody></table>${pg.nav()}</section>`
     : empty('No reservations here.', html`<a class="btn primary" href="/reservations/new">New reservation</a>`)}` }));
   });
 

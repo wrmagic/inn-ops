@@ -34,6 +34,8 @@ Read this first. The README is the user guide; keep both up to date.
   (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
   `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`
   (settings, locations + room cards, logins), `routes/api.js` (guest search/quick add, availability).
+- Lists in pages: `lib/paging.js` (from EMP; `paging(ctx, key, total)` → `limit/offset/nav()`, `pageRows` for in-memory
+  lists; 20/50/100/All remembered in a `per_<key>` cookie). Used by `/reservations` and `/guests`.
 - Phone version: `routes/mobile.js` (`/m` today with ‹ › days, `/m/upcoming`, `/m/find`, `/m/r/:id`, `POST /m/r/:id/comment`
   appends `[when, who] text` to `comments`; `/manifest.webmanifest`; icons `public/icon-*.png`). Uses EMP's `.m-*` styles in
   app.css plus `.m-res*` in inn.css. Check in/out posts to `/reservations/:id/status` with `next`.

@@ -5,17 +5,23 @@ const { layout, csrfField, field, input, textarea, pageHead, empty, badge } = re
 const { str, bool, phone, own, now, todayIn } = require('../lib/common');
 const { HttpError } = require('../lib/http');
 const R = require('../lib/res');
+const { paging, pageRows } = require('../lib/paging');
 
 module.exports = (r, { db }) => {
   r.get('/guests', (ctx) => {
     const q = String(ctx.query.q || '').trim();
-    const rows = q ? require('./api').findGuests(db, q, 300) : db.all('SELECT * FROM guests ORDER BY last COLLATE NOCASE, first COLLATE NOCASE, org_name COLLATE NOCASE LIMIT 300');
+    let rows; let pg;
+    if (q) ({ rows, ...pg } = pageRows(ctx, 'guests', require('./api').findGuests(db, q, 5000)));
+    else {
+      pg = paging(ctx, 'guests', db.get('SELECT COUNT(*) n FROM guests').n);
+      rows = db.all("SELECT * FROM guests ORDER BY COALESCE(NULLIF(last,''), org_name, first) COLLATE NOCASE, first COLLATE NOCASE LIMIT ? OFFSET ?", pg.limit, pg.offset);
+    }
     const stays = (id) => db.get(`SELECT COUNT(*) n, MAX(arrive) last FROM reservations r WHERE guest_id=? AND ${R.LIVE}`, id);
     ctx.html(layout(ctx, { title: 'Guests', body: html`${pageHead('Guests', html`<a class="btn primary" href="/guests/new">Add a guest</a>`)}
       <form class="filters" method="get" role="search"><input type="search" name="q" value="${q}" placeholder="Name, phone or email" aria-label="Search guests" autofocus><button class="btn">Search</button>${q ? html`<a class="btn ghost" href="/guests">Clear</a>` : ''}</form>
       ${rows.length ? html`<section class="panel"><table class="list"><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Stays</th></tr></thead><tbody>
         ${rows.map((g) => { const st = stays(g.id); return html`<tr><td><a href="/guests/${g.id}"><b>${personName(g)}</b></a>${g.is_org ? badge('Group') : ''}</td><td>${g.phone || ''}</td><td>${g.email || ''}</td>
-          <td>${st.n ? `${st.n} · last ${dateFmt(st.last)}` : ''}</td></tr>`; })}</tbody></table></section>`
+          <td>${st.n ? `${st.n} · last ${dateFmt(st.last)}` : ''}</td></tr>`; })}</tbody></table>${pg.nav()}</section>`
     : empty(q ? 'No guests match.' : 'No guests yet.', html`<a class="btn primary" href="/guests/new">Add a guest</a>`)}` }));
   });
 

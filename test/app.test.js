@@ -298,6 +298,31 @@ test('phone version: today, find, check in and out, comments', async () => {
   assert.equal(JSON.parse(m.text).start_url, '/m');
 });
 
+test('reservation and guest lists come in pages (20, 50, 100 or All, remembered)', async () => {
+  for (let i = 0; i < 45; i++) db.insert('guests', { first: 'Pager', last: `Guest${String(i).padStart(2, '0')}`, created_at: '2026-01-01' });
+  const g = db.get("SELECT id FROM guests WHERE last='Guest00'").id;
+  for (let i = 0; i < 25; i++) db.insert('reservations', { kind: 'buyout', location_id: locId, guest_id: g, arrive: `2030-0${1 + Math.floor(i / 9)}-${String(1 + (i % 9) * 3).padStart(2, '0')}`, depart: `2030-0${1 + Math.floor(i / 9)}-${String(2 + (i % 9) * 3).padStart(2, '0')}`, status: 'confirmed', buyout_rate_cents: 100, created_at: '2026-01-01' });
+  const total = db.get('SELECT COUNT(*) n FROM guests').n;
+  let r = await get('/guests');
+  assert.match(r.text, new RegExp(`Showing 1–20 of ${total}`));
+  assert.match(r.text, /Next ›/);
+  r = await get('/guests?page=2');
+  assert.match(r.text, new RegExp(`Showing 21–40 of ${total}`));
+  r = await get('/guests?per=50');
+  assert.match(r.text, new RegExp(`Showing 1–${Math.min(50, total)} of ${total}`));
+  r = await get('/guests');
+  assert.match(r.text, new RegExp(`Showing 1–${Math.min(50, total)} of ${total}`), 'the choice is remembered');
+  r = await get('/guests?q=Pager');
+  assert.match(r.text, /Showing 1–45 of 45/);
+  await get('/guests?per=20');
+  r = await get('/reservations?when=all');
+  const n = db.get('SELECT COUNT(*) n FROM reservations').n;
+  assert.match(r.text, new RegExp(`Showing 1–20 of ${n}`));
+  r = await get('/reservations?when=all&per=all');
+  assert.match(r.text, new RegExp(`Showing 1–${n} of ${n}`));
+  assert.doesNotMatch(r.text, /Next ›/);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);
