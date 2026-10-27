@@ -270,6 +270,32 @@ test('a location with no rooms is booked whole and shows everywhere', async () =
   assert.equal(again.status, 409);
 });
 
+test('phone version: today, find, check in and out, comments', async () => {
+  const x = db.get("SELECT * FROM reservations WHERE status='confirmed' ORDER BY id LIMIT 1");
+  const day = await get(`/m?d=${x.arrive}`);
+  assert.equal(day.status, 200);
+  assert.match(day.text, new RegExp(`href="/m/r/${x.id}"`));
+  assert.match(day.text, /Check in/);
+  assert.equal((await get('/m/upcoming')).status, 200);
+  const find = await get('/m/find?q=Tester');
+  assert.match(find.text, /Pat/);
+  const page = await get(`/m/r/${x.id}`);
+  assert.equal(page.status, 200);
+  if (x.special_needs) assert.ok(page.text.includes(x.special_needs.replace(/&/g, '&amp;')));
+  const ci = await post(`/reservations/${x.id}/status`, { to: 'checked_in', next: `/m/r/${x.id}` });
+  assert.equal(ci.location, `/m/r/${x.id}`);
+  assert.equal(db.get('SELECT status FROM reservations WHERE id=?', x.id).status, 'checked_in');
+  assert.match((await get(`/m/r/${x.id}`)).text, /Check out/);
+  await post(`/reservations/${x.id}/status`, { to: 'checked_out', next: `/m/r/${x.id}` });
+  assert.equal(db.get('SELECT status FROM reservations WHERE id=?', x.id).status, 'checked_out');
+  const c = await post(`/m/r/${x.id}/comment`, { note: 'Left the key in the box' });
+  assert.equal(c.status, 303);
+  assert.match(db.get('SELECT comments FROM reservations WHERE id=?', x.id).comments, /\] Left the key in the box$/);
+  assert.match((await get(`/m/r/${x.id}`)).text, /Left the key in the box/);
+  const m = await get('/manifest.webmanifest');
+  assert.equal(JSON.parse(m.text).start_url, '/m');
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

@@ -32,6 +32,12 @@ completely on its own: its own website, its own database and its own logins.
 - **Guests** and **Events**: a profile for each guest with all their stays; each event lists its reservations and
   has an "Add a reservation" link that fills in the event, dates and location.
 - **Reports**: arrivals and departures for a date range, and a house list (who's in every room on a night). All print.
+- **Phone version** (`/m`, or **Phone version** at the bottom of the menu): today's arrivals, departures and who's
+  staying, with big Check in and Check out buttons; flip to other days with ‹ ›; **Coming up** (the next two weeks);
+  **Find** (by guest, who's in a room, event or reservation #). Open a stay to see its rooms, special needs, comments
+  and instructions, call or text the guest, check in or out (or undo), and add a comment (saved with the time and
+  your name). To put it on your phone's home screen: open the site on the phone, sign in, then Share → Add to Home
+  Screen (iPhone) or ⋮ → Add to Home screen (Android).
 - **Confirmation**: a printable confirmation for the guest from each reservation (staff comments are left off).
 
 ## Setting it up on Render
