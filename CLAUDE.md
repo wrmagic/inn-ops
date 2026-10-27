@@ -1,0 +1,45 @@
+# Inn Ops Reservation System: project memory
+
+Read this first. The README is the user guide; keep both up to date.
+
+## What it is
+
+- Lodging reservations for The House of MAGIC's properties: **Inn, Stonehouse, Ranch House, Mansion**.
+  Rooms or full buy-outs, who's in each room, dates and times, needs, instructions, comments, linked event, money.
+- Owner: James Lantiegne (wrmagic). Not a programmer: tests in the browser, sends screenshots.
+  Repo `github.com/wrmagic/inn-ops`, branch `main`; Render blueprint `render.yaml` (disk at `/data`). Push = redeploy.
+- Sister app to Event Master Plus (`wrmagic/event-master-plus`), built the same way but fully separate
+  (single business, no orgs, no shared database).
+
+## How it's built
+
+- Node ≥ 22.13, **no dependencies**: `node:sqlite`, `http`, `crypto`. Don't add npm packages.
+- `server.js` registers `ROUTES` (`routes/*.js`, each `module.exports = (r, { db }) => {…}`); add new route files there.
+  First start with no users runs `scripts/setup.js` (`SEED_DEMO=1` adds demo data). Env: `DATABASE_FILE`, `PORT`,
+  `ADMIN_PASSWORD`, `BASE_URL`.
+- `lib/http.js` and `lib/html.js` are copies from EMP: 303 redirects, `x[]` fields arrive as arrays (a repeated plain
+  name keeps only the last), `html` template auto-escapes, `money`/`toCents`/`centsInput`/`dateFmt`/`time12`.
+  Routes `{ public: true }`, `{ admin: true }`. Every POST checks CSRF (`csrfField(ctx)` in every form).
+- `lib/db.js`: schema + `addColumn` migrations at the end. `settings` is one row (id 1), read as `ctx.settings`.
+- `lib/views.js`: `layout`, `bare`, `field`, `input`, `select`, `check`, `textarea`, `guestPicker`, `pageHead`, `badge`, `empty`.
+- `lib/res.js`: the rules. Nights = arrive up to (not including) depart. Overlap = `r.arrive < depart AND arrive < r.depart`.
+  `conflicts()` (rooms + any buy-out at the location), `busyRooms()`, `totals()` (rates × nights − discount + tax),
+  `STATUS`, `LIVE` (not cancelled). A buy-out stores a `reservation_rooms` row per room (occupants per room),
+  and its price is `reservations.buyout_rate_cents` × nights.
+- Pages: `routes/reservations.js` (list, form, view, status, payments, confirmation), `routes/calendar.js`
+  (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
+  `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`
+  (settings, locations + room cards, logins), `routes/api.js` (guest search/quick add, availability).
+- Front end: `public/app.css` + `app.js` (from EMP) and `public/inn.css` + `inn.js` (reservation form, date book).
+
+## Running, testing
+
+- `npm run demo`, `npm start`; or `DATABASE_FILE=/path/x.db PORT=3470 node server.js`.
+- `npm test` (`test/app.test.js`, runs in order, logs in as `admin` / `test-password-1`). Keep them passing; add tests.
+- Check UI in Playwright (`/opt/npm-tools/node_modules/playwright`); restart the server after code changes.
+- Commit messages end with the session's attribution lines; push `main` after each finished change.
+
+## How the owner likes to work
+
+Same as EMP: plain language, short answers saying what changed and where to find it; fold in mid-task follow-ups;
+roomy tidy screens; never echo secrets.

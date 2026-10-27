@@ -1,0 +1,20 @@
+# One-click setup on Render (render.com): New → Blueprint → pick this repository.
+services:
+  - type: web
+    name: inn-ops
+    runtime: node
+    plan: starter            # a paid plan is needed for the persistent disk
+    buildCommand: "true"     # nothing to install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_FILE
+        value: /data/innops.db
+      - key: BASE_URL
+        sync: false          # e.g. https://innops.onrender.com
+      - key: ADMIN_PASSWORD
+        sync: false          # password for the "admin" login, used on first start only

@@ -1,0 +1,17 @@
+{
+  "name": "inn-ops",
+  "version": "0.1.0",
+  "description": "Inn Ops Reservation System - lodging reservations for the Inn, Stonehouse, Ranch House and Mansion",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "setup": "node --disable-warning=ExperimentalWarning scripts/setup.js",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/setup.js --demo",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "reset-password": "node --disable-warning=ExperimentalWarning scripts/reset-password.js"
+  }
+}
