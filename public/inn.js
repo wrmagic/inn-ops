@@ -30,6 +30,7 @@
     const o = locSel.selectedOptions[0];
     if (!touchedTimes) { if (tin) tin.value = o.dataset.in || tin.value; if (tout) tout.value = o.dataset.out || tout.value; }
     const br = form.querySelector('input[name=buyout_rate]'); if (br && o.dataset.buyout) br.value = o.dataset.buyout;
+    const bw = form.querySelector('input[name=buyout_wrate]'); if (bw && o.dataset.buyoutW) bw.value = o.dataset.buyoutW;
     showRooms(); check();
   });
   form.querySelectorAll('input[name=kind]').forEach((r) => r.addEventListener('change', () => {
@@ -39,7 +40,8 @@
 
   // Nights, and the departure date following the arrival date (keeping the same number of nights)
   let prevArr = arrive.value;
-  const nights = () => { const a = day(arrive.value); const d = day(depart.value); const n = a !== null && d !== null ? d - a : null; nightsOut.textContent = n > 0 ? `${n} night${n === 1 ? '' : 's'}` : n !== null ? 'Departure must be after arrival' : ''; };
+  const nights = () => { const a = day(arrive.value); const d = day(depart.value); const n = a !== null && d !== null ? d - a : null; let w = 0; if (n > 0) for (let i = a; i < d; i++) { const g = new Date(i * 864e5).getUTCDay(); if (g === 5 || g === 6) w++; }
+    nightsOut.textContent = n > 0 ? `${n} night${n === 1 ? '' : 's'}${w ? ` (${w === n ? 'all' : w} weekend)` : ''}` : n !== null ? 'Departure must be after arrival' : ''; };
   arrive.addEventListener('change', () => {
     const a = day(arrive.value); if (a === null) return;
     const oldA = day(prevArr); const d = day(depart.value);

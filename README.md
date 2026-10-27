@@ -5,9 +5,12 @@ completely on its own: its own website, its own database and its own logins.
 
 ## What it does
 
-- **Locations and rooms**: each location has its own check-in and checkout times, a buy-out rate a night, directions and
-  instructions for guests, and staff notes. Each room has a name, description, how many it sleeps, a rate a night, and
+- **Locations and rooms**: each location has its own check-in and checkout times, buy-out rates, directions and
+  instructions for guests, and staff notes. Each room has a name, description, how many it sleeps, rates, and
   its own times and instructions if they differ from the location's.
+- **Weekday and weekend rates**: every room and every buy-out has a weekday rate (Sunday–Thursday nights) and a
+  weekend rate (Friday and Saturday nights). Leave the weekend rate blank to charge the weekday rate. A stay is
+  priced night by night, and the reservation shows how many weeknights and weekend nights it has.
 - **Reservations**: book **individual rooms** or a **full buy-out** of a location. Each reservation keeps:
   - the guest, the dates (arrives and departs), check-in and checkout times, adults and children
   - for each room, its rate and **who's staying in it**
@@ -15,7 +18,7 @@ completely on its own: its own website, its own database and its own logins.
     **comments** (staff only)
   - the **event** it belongs to (a wedding, retreat, show…)
   - status: Tentative, Confirmed, Checked in, Checked out, Cancelled
-  - money: room rates × nights (or the buy-out rate × nights), discount, lodging tax, deposit and due date,
+  - money: each night at its weekday or weekend rate (rooms or buy-out), discount, lodging tax, deposit and due date,
     payments and refunds, balance
 - **No double bookings**: a room can't be booked twice for the same night, and a buy-out can't overlap any booking
   at that location. A guest can arrive the same day the last one leaves.

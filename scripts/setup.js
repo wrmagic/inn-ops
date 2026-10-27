@@ -28,9 +28,9 @@ if (demo && !db.get('SELECT COUNT(*) n FROM rooms').n) {
     'Ranch House': [['Bunk Room', 'Four bunks', 4, 14900], ['Corner Room', 'Queen bed', 2, 15900], ['Porch Room', 'Queen bed, porch', 2, 16900]],
     Mansion: [['Grand Suite', 'King bed, fireplace', 2, 39900], ['East Room', 'Queen bed', 2, 22900], ['West Room', 'Queen bed', 2, 22900], ['Nursery', 'Twin bed', 1, 12900], ['Library Room', 'King bed', 2, 25900]],
   };
-  for (const [l, list] of Object.entries(rooms)) list.forEach(([name, description, max_guests, rate_cents], i) => db.insert('rooms', { location_id: loc(l), name, description, max_guests, rate_cents, sort: i }));
-  db.run('UPDATE locations SET buyout_rate_cents=? WHERE name=?', 150000, 'Mansion');
-  db.run('UPDATE locations SET buyout_rate_cents=? WHERE name=?', 85000, 'Inn');
+  for (const [l, list] of Object.entries(rooms)) list.forEach(([name, description, max_guests, rate_cents], i) => db.insert('rooms', { location_id: loc(l), name, description, max_guests, rate_cents, weekend_rate_cents: rate_cents + 4000, sort: i }));
+  db.run('UPDATE locations SET buyout_rate_cents=?, buyout_weekend_rate_cents=? WHERE name=?', 150000, 180000, 'Mansion');
+  db.run('UPDATE locations SET buyout_rate_cents=?, buyout_weekend_rate_cents=? WHERE name=?', 85000, 100000, 'Inn');
   db.run("UPDATE locations SET instructions='Park in the lot behind the main house. The front door code is sent the day before arrival.' WHERE name='Mansion'");
   const g = (first, last, phone, email) => db.insert('guests', { first, last, phone, email, created_at: now });
   const smith = g('Madison', 'Smith', '(805) 555-0101', 'madison@example.com'); const lee = g('Daniel', 'Lee', '(805) 555-0102', 'dlee@example.com');
@@ -41,10 +41,10 @@ if (demo && !db.get('SELECT COUNT(*) n FROM rooms').n) {
   const book = (rec, roomNames, occ = {}) => {
     const id = db.insert('reservations', { kind: 'rooms', status: 'confirmed', created_at: now, ...rec });
     const names = rec.kind === 'buyout' ? db.all('SELECT name FROM rooms WHERE location_id=?', rec.location_id).map((x) => x.name) : roomNames;
-    for (const n of names) { const ro = room(n); db.insert('reservation_rooms', { reservation_id: id, room_id: ro.id, rate_cents: ro.rate_cents, occupants: occ[n] || null }); }
+    for (const n of names) { const ro = room(n); db.insert('reservation_rooms', { reservation_id: id, room_id: ro.id, rate_cents: ro.rate_cents, weekend_rate_cents: ro.weekend_rate_cents, occupants: occ[n] || null }); }
     return id;
   };
-  book({ kind: 'buyout', location_id: loc('Mansion'), guest_id: smith, event_id: ev, arrive: addDays(today, 3), depart: addDays(today, 6), check_in_time: '15:00', check_out_time: '11:00', buyout_rate_cents: 150000, adults: 9, special_needs: 'Bride’s grandmother uses a walker: ground floor please.', deposit_cents: 150000 }, [], { 'Grand Suite': 'Madison Smith & Alex Jones', Nursery: 'Ella Smith' });
+  book({ kind: 'buyout', location_id: loc('Mansion'), guest_id: smith, event_id: ev, arrive: addDays(today, 3), depart: addDays(today, 6), check_in_time: '15:00', check_out_time: '11:00', buyout_rate_cents: 150000, buyout_weekend_rate_cents: 180000, adults: 9, special_needs: 'Bride’s grandmother uses a walker: ground floor please.', deposit_cents: 150000 }, [], { 'Grand Suite': 'Madison Smith & Alex Jones', Nursery: 'Ella Smith' });
   book({ location_id: loc('Inn'), guest_id: lee, arrive: addDays(today, -1), depart: addDays(today, 2), check_in_time: '15:00', check_out_time: '11:00', adults: 2, status: 'checked_in', checked_in_at: now }, ['Rose Room'], { 'Rose Room': 'Daniel & Kim Lee' });
   book({ location_id: loc('Inn'), guest_id: ortiz, event_id: ev, arrive: addDays(today, 3), depart: addDays(today, 5), check_in_time: '16:00', check_out_time: '11:00', adults: 3, status: 'tentative' }, ['Garden Room', 'Blue Room'], { 'Garden Room': 'Ana Ortiz', 'Blue Room': 'Luis & Sofia Ortiz' });
   book({ location_id: loc('Ranch House'), guest_id: brown, arrive: today, depart: addDays(today, 4), check_in_time: '15:00', check_out_time: '10:00', adults: 4, special_instructions: 'Late arrival around 9 PM: leave the porch light on.' }, ['Bunk Room', 'Corner Room']);

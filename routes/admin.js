@@ -53,10 +53,10 @@ module.exports = (r, { db }) => {
     page(ctx, 'Locations and rooms', html`
       <form method="post" action="/admin/locations/new" class="panel add-row">${csrfField(ctx)}<label class="sr" for="nl">New location</label>
         <input id="nl" name="name" required maxlength="80" placeholder="Add a location (e.g. Carriage House)"><button class="btn">Add location</button></form>
-      ${locs.length ? html`<section class="panel"><table class="list"><thead><tr><th>Location</th><th>Rooms</th><th>Check-in / out</th><th class="num">Buy-out a night</th><th></th></tr></thead><tbody>
+      ${locs.length ? html`<section class="panel"><table class="list"><thead><tr><th>Location</th><th>Rooms</th><th>Check-in / out</th><th class="num">Buy-out a night<small class="muted"> weekday / weekend</small></th><th></th></tr></thead><tbody>
         ${locs.map((l) => html`<tr class="${l.active ? '' : 'struck'}"><td><span class="dot" style="background:${R.locColor(l)}"></span><a href="/admin/locations/${l.id}"><b>${l.name}</b></a>${l.active ? '' : badge('Not in use', 'soft')}</td>
           <td>${l.nrooms}</td><td>${time12(l.check_in_time || ctx.settings.check_in_time)} / ${time12(l.check_out_time || ctx.settings.check_out_time)}</td>
-          <td class="num">${l.buyout_rate_cents ? money(l.buyout_rate_cents) : '—'}</td><td class="num"><a class="btn small ghost" href="/admin/locations/${l.id}">Edit</a></td></tr>`)}</tbody></table></section>`
+          <td class="num">${l.buyout_rate_cents ? `${money(l.buyout_rate_cents)} / ${money(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}` : '—'}</td><td class="num"><a class="btn small ghost" href="/admin/locations/${l.id}">Edit</a></td></tr>`)}</tbody></table></section>`
     : empty('No locations yet.')}`, '/admin/locations');
   }, A);
   r.post('/admin/locations/new', (ctx) => {
@@ -74,9 +74,10 @@ module.exports = (r, { db }) => {
         <input type="hidden" name="room_id[]" value="${x.id || ''}">
         <div class="grid g4">
           ${field('Room name', input('room_name[]', x.name, { maxlength: 80, placeholder: x.id ? '' : 'New room' }))}
-          ${field('Rate a night', input('room_rate[]', centsInput(x.rate_cents), { inputmode: 'decimal', placeholder: '0.00' }))}
-          ${field('Sleeps', input('room_max[]', x.max_guests, { type: 'number', min: 0, max: 99 }))}
-          ${field('In use', select('room_active[]', [['1', 'Yes'], ['0', 'No']], x.id ? (x.active ? '1' : '0') : '1'))}
+          ${field('Weekday rate', input('room_rate[]', centsInput(x.rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Sun – Thu nights' })}
+          ${field('Weekend rate', input('room_wrate[]', centsInput(x.weekend_rate_cents), { inputmode: 'decimal', placeholder: 'Same as weekday' }), { hint: 'Fri and Sat nights' })}
+          <div class="grid g2">${field('Sleeps', input('room_max[]', x.max_guests, { type: 'number', min: 0, max: 99 }))}
+          ${field('In use', select('room_active[]', [['1', 'Yes'], ['0', 'No']], x.id ? (x.active ? '1' : '0') : '1'))}</div>
           ${field('Beds and description', input('room_desc[]', x.description, { maxlength: 200, placeholder: 'King bed, private bath, garden view' }), { cls: 'span2' })}
           ${field('Check-in', input('room_in[]', x.check_in_time, { type: 'time' }), { hint: `Blank: ${time12(l.check_in_time || s.check_in_time)}` })}
           ${field('Checkout', input('room_out[]', x.check_out_time, { type: 'time' }), { hint: `Blank: ${time12(l.check_out_time || s.check_out_time)}` })}
@@ -96,7 +97,8 @@ module.exports = (r, { db }) => {
           ${field('Phone', input('phone', l.phone, { type: 'tel' }))}
           ${field('Check-in time', input('check_in_time', l.check_in_time, { type: 'time' }), { hint: `Blank: ${time12(s.check_in_time)}` })}
           ${field('Checkout time', input('check_out_time', l.check_out_time, { type: 'time' }), { hint: `Blank: ${time12(s.check_out_time)}` })}
-          ${field('Full buy-out rate a night', input('buyout_rate', centsInput(l.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Renting the whole location.' })}
+          <div class="grid g2">${field('Buy-out weekday', input('buyout_rate', centsInput(l.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Sun – Thu nights' })}
+          ${field('Buy-out weekend', input('buyout_wrate', centsInput(l.buyout_weekend_rate_cents), { inputmode: 'decimal', placeholder: 'Same' }), { hint: 'Fri, Sat nights' })}</div>
         </div>
         ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }))}
         ${field('Staff notes', textarea('notes', l.notes, { rows: 2 }))}
@@ -116,11 +118,11 @@ module.exports = (r, { db }) => {
     db.tx(() => {
       db.update('locations', l.id, { name, color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : null, active: b.active === '0' ? 0 : 1, address1: str(b.address1, 200), city: str(b.city, 100),
         state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), phone: phone(b.phone), check_in_time: time(b.check_in_time), check_out_time: time(b.check_out_time),
-        buyout_rate_cents: toCents(b.buyout_rate), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
+        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
       const kept = new Set();
       names.forEach((n, i) => {
         const rn = str(n, 80); if (!rn) return;
-        const rec = { name: rn, rate_cents: toCents(col('room_rate', i)) || 0, max_guests: int(col('room_max', i)), active: col('room_active', i) === '0' ? 0 : 1, description: str(col('room_desc', i), 200),
+        const rec = { name: rn, rate_cents: toCents(col('room_rate', i)) || 0, weekend_rate_cents: toCents(col('room_wrate', i)), max_guests: int(col('room_max', i)), active: col('room_active', i) === '0' ? 0 : 1, description: str(col('room_desc', i), 200),
           check_in_time: time(col('room_in', i)), check_out_time: time(col('room_out', i)), instructions: str(col('room_instr', i), 3000), notes: str(col('room_notes', i), 3000), sort: i };
         const rid = int(ids[i]);
         if (rid && db.get('SELECT 1 FROM rooms WHERE id=? AND location_id=?', rid, l.id)) { db.update('rooms', rid, rec); kept.add(rid); }

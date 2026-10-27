@@ -216,6 +216,40 @@ test('calendar, date book, lists, reports and confirmation pages open', async ()
   assert.match(cal.text, /Pat/);
 });
 
+test('weekend rates: Friday and Saturday nights', async () => {
+  const room = (id, name, rate, wrate) => [['room_id[]', String(id)], ['room_name[]', name], ['room_rate[]', rate], ['room_wrate[]', wrate], ['room_max[]', '2'], ['room_active[]', '1'],
+    ['room_desc[]', ''], ['room_in[]', ''], ['room_out[]', ''], ['room_instr[]', ''], ['room_notes[]', '']];
+  const s = await post(`/admin/locations/${locId}`, [['name', 'Test Cottage'], ['buyout_rate', '500'], ['buyout_wrate', '650'],
+    ...room(roomA, 'Upstairs', '100', '150'), ...room(roomB, 'Downstairs', '80.50', '')]);
+  assert.equal(s.status, 303);
+  assert.equal(db.get('SELECT weekend_rate_cents FROM rooms WHERE id=?', roomA).weekend_rate_cents, 15000);
+  assert.equal(db.get('SELECT weekend_rate_cents FROM rooms WHERE id=?', roomB).weekend_rate_cents, null);
+  assert.equal(db.get('SELECT buyout_weekend_rate_cents FROM locations WHERE id=?', locId).buyout_weekend_rate_cents, 65000);
+  const form = await get(`/reservations/new?room=${roomA}&arrive=2027-05-06`);
+  assert.match(form.text, new RegExp(`name="wrate_${roomA}" value="150.00"`));
+  // Thu 6 May → Sun 9 May: Thursday is a weeknight, Friday and Saturday are weekend nights
+  const r = await post('/reservations/new', booking([['room_ids[]', String(roomA)], ['room_ids[]', String(roomB)]]).map(([k, v]) => (k === 'arrive' ? [k, '2027-05-06'] : k === 'depart' ? [k, '2027-05-09'] : [k, v])));
+  assert.equal(r.status, 303, r.text);
+  const id = Number(r.location.split('/').pop());
+  const R = require('../lib/res');
+  const x = db.get('SELECT * FROM reservations WHERE id=?', id);
+  const t = R.totals(db, x, { tax_percent: 0 });
+  assert.equal(t.weekdayNights, 1);
+  assert.equal(t.weekendNights, 2);
+  // 1 × (100 + 80.50) + 2 × (150 + 80.50) = 180.50 + 461.00
+  assert.equal(t.subtotal, 64150);
+  const page = await get(`/reservations/${id}`);
+  assert.match(page.text, /1 weeknight/);
+  assert.match(page.text, /2 weekend nights/);
+  // a buy-out uses the location's weekend rate
+  await post(`/reservations/${id}/status`, { to: 'cancelled' });
+  const b = await post('/reservations/new', booking().map(([k, v]) => (k === 'kind' ? [k, 'buyout'] : k === 'arrive' ? [k, '2027-05-06'] : k === 'depart' ? [k, '2027-05-09'] : [k, v])));
+  assert.equal(b.status, 303, b.text);
+  const bx = db.get('SELECT * FROM reservations WHERE id=?', Number(b.location.split('/').pop()));
+  assert.equal(bx.buyout_weekend_rate_cents, 65000);
+  assert.equal(R.totals(db, bx, { tax_percent: 0 }).subtotal, 50000 + 2 * 65000);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

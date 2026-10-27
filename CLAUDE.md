@@ -23,7 +23,9 @@ Read this first. The README is the user guide; keep both up to date.
 - `lib/db.js`: schema + `addColumn` migrations at the end. `settings` is one row (id 1), read as `ctx.settings`.
 - `lib/views.js`: `layout`, `bare`, `field`, `input`, `select`, `check`, `textarea`, `guestPicker`, `pageHead`, `badge`, `empty`.
 - `lib/res.js`: the rules. Nights = arrive up to (not including) depart. Overlap = `r.arrive < depart AND arrive < r.depart`.
-  `conflicts()` (rooms + any buy-out at the location), `busyRooms()`, `totals()` (rates × nights − discount + tax),
+  `conflicts()` (rooms + any buy-out at the location), `busyRooms()`, `totals()` (weeknights × weekday rate + Fri/Sat nights ×
+  weekend rate − discount + tax; `weekend_rate_cents`/`buyout_weekend_rate_cents` NULL = weekday rate; copied onto
+  `reservation_rooms`/`reservations` when booked),
   `STATUS`, `LIVE` (not cancelled). A buy-out stores a `reservation_rooms` row per room (occupants per room),
   and its price is `reservations.buyout_rate_cents` × nights.
 - Pages: `routes/reservations.js` (list, form, view, status, payments, confirmation), `routes/calendar.js`

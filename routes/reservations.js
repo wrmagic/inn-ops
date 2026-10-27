@@ -59,7 +59,7 @@ module.exports = (r, { db }) => {
           <label><input type="radio" name="kind" value="buyout"${x.kind === 'buyout' ? raw(' checked') : ''}> Full buy-out (the whole location)</label></fieldset>
         <div class="grid g4">
           ${field('Guest (who the reservation is for)', guestPicker('guest_id', guestOf(x), { placeholder: 'Search guests (or add a new one)' }), { cls: 'span2' })}
-          ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
+          ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}" data-buyout-w="${centsInput(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
           ${field('Event', select('event_id', events.map((e) => [e.id, `${e.name}${e.start_date ? ` (${dateFmt(e.start_date)})` : ''}`]), x.event_id, { blank: 'None' }), { hint: html`<a href="/events/new" target="_blank" rel="noopener">Add an event</a>` })}
           ${field('Arrives', input('arrive', x.arrive, { type: 'date', required: true }))}
           ${field('Departs', input('depart', x.depart, { type: 'date', required: true }))}
@@ -73,14 +73,16 @@ module.exports = (r, { db }) => {
       </section>
       <section class="panel"><h2 data-rooms-title>${x.kind === 'buyout' ? 'Rooms and who’s in them' : 'Rooms'}</h2>
         <p class="hint" data-kind-hint>${x.kind === 'buyout' ? 'The whole location is booked; fill in who’s staying in each room.' : 'Tick the rooms, and who’s staying in each. Rooms already booked for those nights are marked.'}</p>
-        <div class="buyout-rate"${x.kind === 'buyout' ? '' : raw(' hidden')} data-buyout-only>${field('Buy-out rate a night', input('buyout_rate', centsInput(x.buyout_rate_cents ?? loc.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }))}</div>
+        <div class="buyout-rate grid g4"${x.kind === 'buyout' ? '' : raw(' hidden')} data-buyout-only>${field('Buy-out weekday rate', input('buyout_rate', centsInput(x.buyout_rate_cents ?? loc.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Sun – Thu nights' })}
+          ${field('Buy-out weekend rate', input('buyout_wrate', centsInput(x.id && x.kind === 'buyout' ? x.buyout_weekend_rate_cents ?? x.buyout_rate_cents : loc.buyout_weekend_rate_cents ?? loc.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Fri and Sat nights' })}</div>
         ${locs.map((l) => { const rooms = db.all('SELECT * FROM rooms WHERE location_id=? AND (active=1 OR id IN (SELECT room_id FROM reservation_rooms WHERE reservation_id=?)) ORDER BY sort, name', l.id, x.id || 0);
           return html`<div class="room-pick" data-loc-rooms="${l.id}"${l.id === loc.id ? '' : raw(' hidden')}>
-            ${rooms.length ? html`<table class="list compact"><thead><tr><th></th><th>Room</th><th>Rate a night</th><th>Who’s staying in it</th><th></th></tr></thead><tbody>
+            ${rooms.length ? html`<table class="list compact"><thead><tr><th></th><th>Room</th><th>Weekday<small class="muted"> Sun–Thu</small></th><th>Weekend<small class="muted"> Fri, Sat</small></th><th>Who’s staying in it</th><th></th></tr></thead><tbody>
               ${rooms.map((ro) => { const p = picked.get(ro.id); const b = busy.get(ro.id); return html`<tr data-room="${ro.id}" class="${b ? 'busy' : ''}">
                 <td><input type="checkbox" name="room_ids[]" value="${ro.id}" aria-label="Book ${ro.name}"${p ? raw(' checked') : ''} data-room-check></td>
                 <td><b>${ro.name}</b>${ro.description ? html`<small class="contact-line">${ro.description}</small>` : ''}${ro.max_guests ? html`<small class="contact-line">Sleeps ${ro.max_guests}</small>` : ''}</td>
-                <td><input name="rate_${ro.id}" value="${centsInput(p ? p.rate : ro.rate_cents)}" inputmode="decimal" class="short" aria-label="Rate for ${ro.name}" data-room-rate></td>
+                <td><input name="rate_${ro.id}" value="${centsInput(p ? p.rate : ro.rate_cents)}" inputmode="decimal" class="short" aria-label="Weekday rate for ${ro.name}" data-room-rate></td>
+                <td><input name="wrate_${ro.id}" value="${centsInput(p ? p.wrate : ro.weekend_rate_cents ?? ro.rate_cents)}" inputmode="decimal" class="short" aria-label="Weekend rate for ${ro.name}" data-room-rate></td>
                 <td><input name="occ_${ro.id}" value="${p ? p.occupants || '' : ''}" maxlength="300" placeholder="Names" aria-label="Who’s staying in ${ro.name}"></td>
                 <td class="avail" data-avail>${b ? html`<span class="badge warn">Booked: ${b.guest}</span>` : ''}</td></tr>`; })}</tbody></table>`
     : html`<p class="muted">No rooms at ${l.name} yet. Add them under <a href="/admin/locations/${l.id}">Admin › Locations and rooms</a>.</p>`}</div>`; })}
@@ -96,7 +98,7 @@ module.exports = (r, { db }) => {
           ${field('Deposit required', input('deposit', centsInput(x.deposit_cents || null), { inputmode: 'decimal', placeholder: '0.00' }))}
           ${field('Deposit due by', input('deposit_due', x.deposit_due, { type: 'date' }))}
         </div>
-        <p class="hint">Room rates × nights${Number(ctx.settings.tax_percent) ? `, less the discount, plus ${ctx.settings.tax_percent}% lodging tax` : ', less the discount'}. Payments are recorded on the reservation.</p>
+        <p class="hint">Weekday rates × Sunday–Thursday nights, weekend rates × Friday and Saturday nights${Number(ctx.settings.tax_percent) ? `, less the discount, plus ${ctx.settings.tax_percent}% lodging tax` : ', less the discount'}. Payments are recorded on the reservation.</p>
       </section>
       <div class="form-actions"><button class="btn primary">${x.id ? 'Save reservation' : 'Book it'}</button><a class="btn ghost" href="${x.id ? `/reservations/${x.id}` : '/reservations'}">Cancel</a></div>
     </form>`;
@@ -124,16 +126,18 @@ module.exports = (r, { db }) => {
     const rec = { kind, location_id: loc.id, guest_id: guestId, event_id: int(b.event_id) && db.get('SELECT 1 FROM events WHERE id=?', int(b.event_id)) ? int(b.event_id) : null,
       arrive: b.arrive, depart: b.depart, check_in_time: isTime(b.check_in_time) ? b.check_in_time : null, check_out_time: isTime(b.check_out_time) ? b.check_out_time : null,
       adults: nn(b.adults), children: nn(b.children), status, buyout_rate_cents: kind === 'buyout' ? toCents(b.buyout_rate) ?? loc.buyout_rate_cents ?? 0 : null,
+      buyout_weekend_rate_cents: kind === 'buyout' ? toCents(b.buyout_wrate) ?? loc.buyout_weekend_rate_cents ?? toCents(b.buyout_rate) ?? loc.buyout_rate_cents ?? 0 : null,
       discount_cents: Math.max(0, toCents(b.discount) || 0), deposit_cents: Math.max(0, toCents(b.deposit) || 0), deposit_due: isDate(b.deposit_due) ? b.deposit_due : null,
       special_needs: str(b.special_needs, 4000), special_instructions: str(b.special_instructions, 4000), comments: str(b.comments, 6000), updated_at: now() };
-    const rooms = chosen.map((ro) => ({ room_id: ro.id, rate_cents: Math.max(0, toCents(b[`rate_${ro.id}`]) ?? ro.rate_cents), occupants: str(b[`occ_${ro.id}`], 300) }));
+    const rooms = chosen.map((ro) => { const rate = Math.max(0, toCents(b[`rate_${ro.id}`]) ?? ro.rate_cents); return { room_id: ro.id, rate_cents: rate,
+      weekend_rate_cents: Math.max(0, toCents(b[`wrate_${ro.id}`]) ?? ro.weekend_rate_cents ?? rate), occupants: str(b[`occ_${ro.id}`], 300) }; });
     return { rec, rooms };
   }
   const saveRooms = (resId, rooms) => {
     db.run('DELETE FROM reservation_rooms WHERE reservation_id=?', resId);
     for (const x of rooms) db.insert('reservation_rooms', { reservation_id: resId, ...x });
   };
-  const pickedOf = (resId) => new Map(R.roomsOf(db, resId).map((x) => [x.id, { rate: x.res_rate, occupants: x.occupants }]));
+  const pickedOf = (resId) => new Map(R.roomsOf(db, resId).map((x) => [x.id, { rate: x.res_rate, wrate: x.res_weekend, occupants: x.occupants }]));
 
   r.get('/reservations/new', (ctx) => {
     const q = ctx.query; const today = todayIn(ctx.settings.timezone);
@@ -142,7 +146,7 @@ module.exports = (r, { db }) => {
     const ev = int(q.event) && db.get('SELECT * FROM events WHERE id=?', int(q.event));
     const x = { kind: q.kind === 'buyout' ? 'buyout' : 'rooms', arrive, depart: isDate(q.depart) && q.depart > arrive ? q.depart : (ev && ev.end_date && ev.end_date > arrive ? ev.end_date : addDays(arrive, 1)),
       location_id: room ? room.location_id : int(q.location) || (ev && ev.location_id) || null, guest_id: int(q.guest) || (ev && ev.contact_id) || null, event_id: ev ? ev.id : null, status: 'confirmed' };
-    const picked = new Map(room ? [[room.id, { rate: room.rate_cents, occupants: '' }]] : []);
+    const picked = new Map(room ? [[room.id, { rate: room.rate_cents, wrate: room.weekend_rate_cents ?? room.rate_cents, occupants: '' }]] : []);
     ctx.html(layout(ctx, { title: 'New reservation', active: '/reservations', body: html`${pageHead('New reservation')}${form(ctx, x, picked)}` }));
   });
   r.post('/reservations/new', (ctx) => {
@@ -191,7 +195,7 @@ module.exports = (r, { db }) => {
             <dt>Booked</dt><dd>${dateTimeFmt(x.created_at, s.timezone)}${by(x.created_by) ? ` by ${by(x.created_by)}` : ''}</dd></dl></section>
           <section class="panel"><h2>Rooms and who’s in them</h2>
             ${rooms.length ? html`<table class="list compact"><tbody>${rooms.map((ro) => html`<tr><td><b>${ro.name}</b>${ro.description ? html`<small class="contact-line">${ro.description}</small>` : ''}</td><td>${ro.occupants || html`<span class="muted">—</span>`}</td>
-              <td class="num">${x.kind === 'buyout' ? '' : html`${money(ro.res_rate)}<small class="muted">/night</small>`}</td></tr>
+              <td class="num">${x.kind === 'buyout' ? '' : html`${money(ro.res_rate)}<small class="muted">/night</small>${ro.res_weekend !== ro.res_rate ? html`<small class="contact-line">${money(ro.res_weekend)} Fri, Sat</small>` : ''}`}</td></tr>
               ${ro.instructions ? html`<tr class="sub-note"><td colspan="3"><small>${ro.instructions}</small></td></tr>` : ''}`)}</tbody></table>` : html`<p class="muted">No rooms.</p>`}
             ${loc && loc.instructions ? html`<p class="hint"><b>${loc.name}:</b> ${loc.instructions}</p>` : ''}</section>
           ${x.special_needs || x.special_instructions || x.comments ? html`<section class="panel"><h2>Needs and notes</h2><dl class="dl">
@@ -202,7 +206,8 @@ module.exports = (r, { db }) => {
         <div class="stack">
           <section class="panel"><h2>Money</h2>
             <table class="list money-table"><tbody>
-              <tr><td>${x.kind === 'buyout' ? `Buy-out ${money(x.buyout_rate_cents)}` : `Rooms ${money(t.nightly)}`} × ${R.nightsLabel(t.nights)}</td><td class="num">${money(t.subtotal)}</td></tr>
+              ${t.weekdayNights ? html`<tr><td>${x.kind === 'buyout' ? 'Buy-out' : 'Rooms'} ${money(t.nightly)} × ${t.weekdayNights} weeknight${t.weekdayNights === 1 ? '' : 's'}</td><td class="num">${money(t.nightly * t.weekdayNights)}</td></tr>` : ''}
+              ${t.weekendNights ? html`<tr><td>${x.kind === 'buyout' ? 'Buy-out' : 'Rooms'} ${money(t.weekendNightly)} × ${t.weekendNights} weekend night${t.weekendNights === 1 ? '' : 's'} <small class="muted">(Fri, Sat)</small></td><td class="num">${money(t.weekendNightly * t.weekendNights)}</td></tr>` : ''}
               ${t.discount ? html`<tr><td>Discount</td><td class="num">−${money(t.discount)}</td></tr>` : ''}
               ${t.tax ? html`<tr><td>Lodging tax ${t.taxPct}%</td><td class="num">${money(t.tax)}</td></tr>` : ''}
               <tr class="tot"><th>Total</th><td class="num"><b>${money(t.total)}</b></td></tr>
