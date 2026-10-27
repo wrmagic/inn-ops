@@ -48,7 +48,7 @@ module.exports = (r, { db }) => {
   // ---------- The form
   function form(ctx, x, picked) {
     const locs = locations(); const loc = locs.find((l) => l.id === x.location_id) || locs[0];
-    const events = db.all('SELECT id, name, start_date FROM events WHERE COALESCE(end_date, start_date, ?) >= ? OR id=? ORDER BY start_date', '9999', addDays(todayIn(ctx.settings.timezone), -60), x.event_id || 0);
+    const events = db.all('SELECT id, name, start_date, end_date FROM events WHERE COALESCE(end_date, start_date, ?) >= ? OR id=? ORDER BY start_date', '9999', addDays(todayIn(ctx.settings.timezone), -60), x.event_id || 0);
     const busy = isDate(x.arrive) && isDate(x.depart) && x.depart > x.arrive ? R.busyRooms(db, x.arrive, x.depart, x.id || 0) : new Map();
     const t = timesFor(ctx, loc);
     if (!locs.length) return html`<div class="alert warn">Add your locations and rooms first, under <a href="/admin/locations">Admin › Locations and rooms</a>.</div>`;
@@ -60,7 +60,7 @@ module.exports = (r, { db }) => {
         <div class="grid g4">
           ${field('Guest (who the reservation is for)', guestPicker('guest_id', guestOf(x), { placeholder: 'Search guests (or add a new one)' }), { cls: 'span2' })}
           ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}" data-buyout-w="${centsInput(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
-          ${field('Event', select('event_id', events.map((e) => [e.id, `${e.name}${e.start_date ? ` (${dateFmt(e.start_date)})` : ''}`]), x.event_id, { blank: 'None' }), { hint: html`<a href="/events/new" target="_blank" rel="noopener">Add an event</a>` })}
+          ${field('Event', html`<select name="event_id" data-res-event><option value="">None</option>${events.map((e) => html`<option value="${e.id}" data-start="${e.start_date || ''}" data-end="${e.end_date || ''}"${e.id === x.event_id ? raw(' selected') : ''}>${e.name}${e.start_date ? ` (${dateFmt(e.start_date)}${e.end_date && e.end_date !== e.start_date ? ` – ${dateFmt(e.end_date)}` : ''})` : ''}</option>`)}</select>`, { hint: html`<a href="/events/new" target="_blank" rel="noopener">Add an event</a>` })}
           ${field('Arrives', input('arrive', x.arrive, { type: 'date', required: true }))}
           ${field('Departs', input('depart', x.depart, { type: 'date', required: true }))}
           ${field('Check-in time', input('check_in_time', x.check_in_time || t.in, { type: 'time' }))}

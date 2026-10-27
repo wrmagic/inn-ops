@@ -50,6 +50,16 @@
   });
   depart.addEventListener('change', () => { nights(); check(); });
 
+  // Picking an event fills in its dates (arrive on its first day, leave on its last day; a one-day event = one night); they can be changed
+  const evSel = form.querySelector('[data-res-event]');
+  if (evSel) evSel.addEventListener('change', () => {
+    const o = evSel.selectedOptions[0]; const s = o && day(o.dataset.start || ''); if (s === null || s === undefined || !o.dataset.start) return;
+    const e = day(o.dataset.end || '');
+    arrive.value = iso(s); depart.value = iso(e !== null && e > s ? e : s + 1); prevArr = arrive.value;
+    [arrive, depart].forEach((el) => { el.classList.add('just-set'); setTimeout(() => el.classList.remove('just-set'), 1200); });
+    nights(); check();
+  });
+
   // Mark the rooms already booked for these nights
   let timer;
   const check = () => {

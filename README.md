@@ -16,7 +16,8 @@ completely on its own: its own website, its own database and its own logins.
   - for each room, its rate and **who's staying in it**
   - **special needs** (accessibility, allergies, cribs…), **special instructions** (printed for the guest) and
     **comments** (staff only)
-  - the **event** it belongs to (a wedding, retreat, show…)
+  - the **event** it belongs to (a wedding, retreat, show…); picking the event fills in its dates (arrive on its first
+    day, leave on its last), which you can still change
   - status: Tentative, Confirmed, Checked in, Checked out, Cancelled
   - money: each night at its weekday or weekend rate (rooms or buy-out), discount, lodging tax, deposit and due date,
     payments and refunds, balance

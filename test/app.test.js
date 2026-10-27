@@ -89,6 +89,8 @@ test('guests and events', async () => {
   const page = await get(`/events/${eventId}`);
   assert.match(page.text, /Test Retreat/);
   assert.match(page.text, /Add a reservation/);
+  const nf = await get('/reservations/new');
+  assert.match(nf.text, new RegExp(`value="${eventId}" data-start="2027-03-01" data-end="2027-03-04"`), 'event options carry their dates for the form');
   const list = await get('/guests?q=Tester');
   assert.match(list.text, /Pat/);
 });

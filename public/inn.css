@@ -133,3 +133,4 @@ body.inn-m .m-tabs.inn-tabs { grid-template-columns: repeat(4, 1fr); }
 .m-addnote { display: flex; flex-direction: column; gap: 8px; }
 .m-addnote textarea { font-size: 16px; }
 .m-addnote .btn { align-self: flex-start; }
+.res-form input.just-set { box-shadow: 0 0 0 3px var(--gold); transition: box-shadow .3s; }
