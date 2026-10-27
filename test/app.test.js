@@ -250,6 +250,26 @@ test('weekend rates: Friday and Saturday nights', async () => {
   assert.equal(R.totals(db, bx, { tax_percent: 0 }).subtotal, 50000 + 2 * 65000);
 });
 
+test('a location with no rooms is booked whole and shows everywhere', async () => {
+  const l = await post('/admin/locations/new', { name: 'Whole Barn' });
+  const wid = Number(l.location.split('/').pop());
+  await post(`/admin/locations/${wid}`, { name: 'Whole Barn', buyout_rate: '400' });
+  const r = await post('/reservations/new', booking().map(([k, v]) => (k === 'kind' ? [k, 'buyout'] : k === 'location_id' ? [k, String(wid)] : k === 'arrive' ? [k, '2027-06-01'] : k === 'depart' ? [k, '2027-06-03'] : [k, v])));
+  assert.equal(r.status, 303, r.text);
+  const id = Number(r.location.split('/').pop());
+  const dbk = await get(`/datebook?from=2027-05-31&days=7&location=${wid}`);
+  assert.match(dbk.text, /Whole location/);
+  assert.match(dbk.text, new RegExp(`href="/reservations/${id}"`));
+  const cal = await get(`/calendar?date=2027-06-01&location=${wid}`);
+  assert.match(cal.text, new RegExp(`href="/reservations/${id}"`));
+  const house = await get('/reports/house?date=2027-06-02');
+  assert.match(house.text, /Whole Barn/);
+  assert.match(house.text, /Pat/);
+  // a second buy-out on the same nights is refused
+  const again = await post('/reservations/new', booking().map(([k, v]) => (k === 'kind' ? [k, 'buyout'] : k === 'location_id' ? [k, String(wid)] : k === 'arrive' ? [k, '2027-06-02'] : k === 'depart' ? [k, '2027-06-04'] : [k, v])));
+  assert.equal(again.status, 409);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

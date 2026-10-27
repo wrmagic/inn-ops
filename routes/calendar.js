@@ -72,6 +72,11 @@ module.exports = (r, { db }) => {
     const add = (roomId, x) => { if (!byRoom.has(roomId)) byRoom.set(roomId, []); if (!byRoom.get(roomId).some((y) => y.id === x.id)) byRoom.get(roomId).push(x); };
     for (const x of db.all(`SELECT r.*, rr.room_id, rr.occupants FROM reservation_rooms rr JOIN reservations r ON r.id=rr.reservation_id WHERE ${R.LIVE} AND r.arrive <= ? AND r.depart > ?`, to, from)) add(x.room_id, x);
     for (const x of db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.kind='buyout' AND r.arrive <= ? AND r.depart > ?`, to, from)) for (const ro of db.all('SELECT id FROM rooms WHERE location_id=?', x.location_id)) add(ro.id, x);
+    // Locations with no rooms (sold only as a whole): their stays go on one line for the location
+    const byLoc = new Map();
+    for (const x of db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.arrive <= ? AND r.depart > ? AND NOT EXISTS (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id=r.id) ORDER BY r.arrive`, to, from)) {
+      if (!byLoc.has(x.location_id)) byLoc.set(x.location_id, []); byLoc.get(x.location_id).push(x);
+    }
     const guestOf = new Map(); const gname = (x) => { if (!guestOf.has(x.guest_id)) guestOf.set(x.guest_id, R.guestName(x.guest_id ? db.get('SELECT * FROM guests WHERE id=?', x.guest_id) : null)); return guestOf.get(x.guest_id); };
     const cols = `minmax(150px, 190px) repeat(${n * 2}, minmax(${n > 14 ? 13 : 22}px, 1fr))`;
     const bar = (x, color) => {
@@ -93,7 +98,10 @@ module.exports = (r, { db }) => {
             ${rooms.length ? rooms.map((ro) => html`<div class="db-row">
               <div class="db-room"><b>${ro.name}</b>${ro.max_guests ? html`<small>sleeps ${ro.max_guests}</small>` : ''}</div>
               ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?room=${ro.id}&arrive=${d}" aria-label="Book ${ro.name} from ${dateFmt(d)}"></a>`)}
-              ${(byRoom.get(ro.id) || []).map((x) => bar(x, color))}</div>`) : html`<div class="db-row"><div class="db-room muted">No rooms yet</div></div>`}`; })}
+              ${(byRoom.get(ro.id) || []).map((x) => bar(x, color))}</div>`) : html`<div class="db-row">
+              <div class="db-room"><b>Whole location</b><small>sold as a buy-out</small></div>
+              ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?kind=buyout&location=${l.id}&arrive=${d}" aria-label="Book ${l.name} from ${dateFmt(d)}"></a>`)}
+              ${(byLoc.get(l.id) || []).map((x) => bar(x, color))}</div>`}`; })}
       </div>${legend()}` : empty('No locations yet. Add them under Admin › Locations and rooms.')}`;
     ctx.html(layout(ctx, { title: 'Date book', body }));
   });

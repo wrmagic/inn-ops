@@ -28,6 +28,8 @@ Read this first. The README is the user guide; keep both up to date.
   `reservation_rooms`/`reservations` when booked),
   `STATUS`, `LIVE` (not cancelled). A buy-out stores a `reservation_rooms` row per room (occupants per room),
   and its price is `reservations.buyout_rate_cents` × nights.
+  A location with no rooms is sold only whole: its buy-outs have no `reservation_rooms`, so the date book gives it one
+  "Whole location" line (`byLoc`), and the dashboard and room list report treat it as booked/open.
 - Pages: `routes/reservations.js` (list, form, view, status, payments, confirmation), `routes/calendar.js`
   (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
   `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`

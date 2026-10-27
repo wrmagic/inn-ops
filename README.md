@@ -26,6 +26,7 @@ completely on its own: its own website, its own database and its own logins.
 - **Date book** (Date book): every room on its own line, 7, 14 or 30 days at a time. Each stay is a bar from the
   afternoon it arrives to the morning it leaves. Click a bar to open the stay, or an empty day to book that room.
   Dashed bars are buy-outs; striped bars are tentative.
+  A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
 - **Dashboard**: today's arrivals and departures with Check in and Check out buttons, who's staying, how full each
   location is tonight, what's coming up, and money still owed.
 - **Guests** and **Events**: a profile for each guest with all their stays; each event lists its reservations and

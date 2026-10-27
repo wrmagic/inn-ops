@@ -19,7 +19,8 @@ module.exports = (r, { db }) => {
       const total = db.get('SELECT COUNT(*) n FROM rooms WHERE location_id=? AND active=1', l.id).n;
       const busy = R.busyRooms(db, today, addDays(today, 1));
       const used = db.all('SELECT id FROM rooms WHERE location_id=? AND active=1', l.id).filter((ro) => busy.has(ro.id)).length;
-      return { ...l, total, used };
+      const whole = !total && !!db.get(`SELECT 1 FROM reservations r WHERE ${R.LIVE} AND r.location_id=? AND r.arrive<=? AND r.depart>?`, l.id, today, today);
+      return { ...l, total, used, whole };
     });
     const btn = (x, to, label) => html`<form method="post" action="/reservations/${x.id}/status" class="inline">${csrfField(ctx)}<input type="hidden" name="to" value="${to}"><input type="hidden" name="next" value="/"><button class="btn small">${label}</button></form>`;
     const line = (x, extra) => html`<li><a href="/reservations/${x.id}"><b>${guest(x)}</b></a> <span class="muted">${R.whereLine(db, x)}</span>${extra || ''}</li>`;
@@ -31,8 +32,8 @@ module.exports = (r, { db }) => {
         <div><b>${arriving.length}</b><span>arriving today</span></div><div><b>${leaving.length}</b><span>leaving today</span></div>
         <div><b>${staying.length}</b><span>staying tonight</span></div><div><b>${soon.length}</b><span>arriving in the next 7 days</span></div>
       </div>
-      <div class="occ-row">${locs.map((l) => html`<a class="occ" href="/datebook?location=${l.id}" style="--c:${R.locColor(l)}"><b>${l.name}</b><span>${l.total ? `${l.used} of ${l.total} rooms tonight` : 'No rooms yet'}</span>
-        <i class="occ-bar"><i style="width:${l.total ? Math.round((l.used / l.total) * 100) : 0}%"></i></i></a>`)}</div>
+      <div class="occ-row">${locs.map((l) => html`<a class="occ" href="/datebook?location=${l.id}" style="--c:${R.locColor(l)}"><b>${l.name}</b><span>${l.total ? `${l.used} of ${l.total} rooms tonight` : l.whole ? 'Booked tonight (buy-out)' : 'Open tonight (sold whole)'}</span>
+        <i class="occ-bar"><i style="width:${l.total ? Math.round((l.used / l.total) * 100) : l.whole ? 100 : 0}%"></i></i></a>`)}</div>
       <div class="cols">
         <div class="stack">
           <section class="panel"><h2>Arriving today</h2>${arriving.length ? html`<ul class="plain dash-list">${arriving.map((x) => line(x, html` <span class="muted">${x.check_in_time ? `from ${time12(x.check_in_time)}` : ''}</span> ${['tentative', 'confirmed'].includes(x.status) ? btn(x, 'checked_in', 'Check in') : badge(R.STATUS[x.status].label, R.STATUS[x.status].badge)}`))}</ul>` : html`<p class="muted">No one arriving today.</p>`}</section>

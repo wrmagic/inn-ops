@@ -85,7 +85,7 @@ module.exports = (r, { db }) => {
                 <td><input name="wrate_${ro.id}" value="${centsInput(p ? p.wrate : ro.weekend_rate_cents ?? ro.rate_cents)}" inputmode="decimal" class="short" aria-label="Weekend rate for ${ro.name}" data-room-rate></td>
                 <td><input name="occ_${ro.id}" value="${p ? p.occupants || '' : ''}" maxlength="300" placeholder="Names" aria-label="Who’s staying in ${ro.name}"></td>
                 <td class="avail" data-avail>${b ? html`<span class="badge warn">Booked: ${b.guest}</span>` : ''}</td></tr>`; })}</tbody></table>`
-    : html`<p class="muted">No rooms at ${l.name} yet. Add them under <a href="/admin/locations/${l.id}">Admin › Locations and rooms</a>.</p>`}</div>`; })}
+    : html`<p class="muted">${l.name} has no rooms set up, so it’s booked as a whole: choose <b>Full buy-out</b> above. To rent its rooms one at a time, add them under <a href="/admin/locations/${l.id}">Admin › Locations and rooms</a>.</p>`}</div>`; })}
       </section>
       <section class="panel"><h2>Needs and notes</h2>
         ${field('Special needs', textarea('special_needs', x.special_needs, { rows: 2, placeholder: 'Accessibility, allergies, crib, early check-in…' }))}
@@ -196,7 +196,7 @@ module.exports = (r, { db }) => {
           <section class="panel"><h2>Rooms and who’s in them</h2>
             ${rooms.length ? html`<table class="list compact"><tbody>${rooms.map((ro) => html`<tr><td><b>${ro.name}</b>${ro.description ? html`<small class="contact-line">${ro.description}</small>` : ''}</td><td>${ro.occupants || html`<span class="muted">—</span>`}</td>
               <td class="num">${x.kind === 'buyout' ? '' : html`${money(ro.res_rate)}<small class="muted">/night</small>${ro.res_weekend !== ro.res_rate ? html`<small class="contact-line">${money(ro.res_weekend)} Fri, Sat</small>` : ''}`}</td></tr>
-              ${ro.instructions ? html`<tr class="sub-note"><td colspan="3"><small>${ro.instructions}</small></td></tr>` : ''}`)}</tbody></table>` : html`<p class="muted">No rooms.</p>`}
+              ${ro.instructions ? html`<tr class="sub-note"><td colspan="3"><small>${ro.instructions}</small></td></tr>` : ''}`)}</tbody></table>` : html`<p class="muted">${x.kind === 'buyout' ? 'The whole location (it has no separate rooms).' : 'No rooms.'}</p>`}
             ${loc && loc.instructions ? html`<p class="hint"><b>${loc.name}:</b> ${loc.instructions}</p>` : ''}</section>
           ${x.special_needs || x.special_instructions || x.comments ? html`<section class="panel"><h2>Needs and notes</h2><dl class="dl">
             ${x.special_needs ? html`<dt>Special needs</dt><dd class="pre">${x.special_needs}</dd>` : ''}
