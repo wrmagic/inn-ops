@@ -60,16 +60,28 @@ module.exports = (r, { db }) => {
 
   // ---------- Locations and rooms
   r.get('/admin/locations', (ctx) => {
-    const locs = db.all('SELECT l.*, (SELECT COUNT(*) FROM rooms WHERE location_id=l.id AND active=1) nrooms FROM locations l ORDER BY l.active DESC, l.sort, l.name');
+    const locs = db.all('SELECT l.*, (SELECT COUNT(*) FROM rooms WHERE location_id=l.id AND active=1) nrooms FROM locations l ORDER BY l.sort, l.name');
     page(ctx, 'Locations and rooms', html`
       <form method="post" action="/admin/locations/new" class="panel add-row">${csrfField(ctx)}<label class="sr" for="nl">New location</label>
         <input id="nl" name="name" required maxlength="80" placeholder="Add a location (e.g. Carriage House)"><button class="btn">Add location</button></form>
-      ${locs.length ? html`<section class="panel"><table class="list"><thead><tr><th>Location</th><th>Rooms</th><th>Check-in / out</th><th class="num">Buy-out a night<small class="muted"> weekday / weekend</small></th><th></th></tr></thead><tbody>
-        ${locs.map((l) => html`<tr class="${l.active ? '' : 'struck'}"><td><span class="dot" style="background:${R.locColor(l)}"></span><a href="/admin/locations/${l.id}"><b>${l.name}</b></a>${l.active ? '' : badge('Not in use', 'soft')}</td>
+      ${locs.length ? html`<section class="panel"><p class="hint">Use ▲ ▼ to set the order locations appear in everywhere: the date book, calendar, check-in, reports and lists.</p>
+        <table class="list"><thead><tr><th class="mv-col">Order</th><th>Location</th><th>Rooms</th><th>Check-in / out</th><th class="num">Buy-out a night<small class="muted"> weekday / weekend</small></th><th></th></tr></thead><tbody>
+        ${locs.map((l, i) => html`<tr class="${l.active ? '' : 'struck'}" id="loc-${l.id}"><td class="mv-col"><span class="cl-move">${mover(ctx, l, 'up', i === 0)}${mover(ctx, l, 'down', i === locs.length - 1)}</span></td><td><span class="dot" style="background:${R.locColor(l)}"></span><a href="/admin/locations/${l.id}"><b>${l.name}</b></a>${l.active ? '' : badge('Not in use', 'soft')}</td>
           <td>${l.nrooms}</td><td>${time12(l.check_in_time || ctx.settings.check_in_time)} / ${time12(l.check_out_time || ctx.settings.check_out_time)}</td>
           <td class="num">${l.buyout_rate_cents ? `${money(l.buyout_rate_cents)} / ${money(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}` : '—'}</td><td class="num"><a class="btn small ghost" href="/admin/locations/${l.id}">Edit</a></td></tr>`)}</tbody></table></section>`
     : empty('No locations yet.')}`, '/admin/locations');
   }, A);
+  // ▲ / ▼ beside each location: swap it with the one above or below
+  const mover = (ctx, l, dir, off) => html`<form method="post" action="/admin/locations/${l.id}/${dir}" class="inline">${csrfField(ctx)}<button class="icon-btn" title="Move ${dir}" aria-label="Move ${l.name} ${dir}"${off ? raw(' disabled') : ''}>${dir === 'up' ? '▲' : '▼'}</button></form>`;
+  for (const dir of ['up', 'down']) {
+    r.post(`/admin/locations/:id/${dir}`, (ctx) => {
+      const l = own(db, 'locations', ctx.params.id);
+      const all = db.all('SELECT id FROM locations ORDER BY sort, name'); const i = all.findIndex((x) => x.id === l.id); const j = dir === 'up' ? i - 1 : i + 1;
+      if (j >= 0 && j < all.length) { [all[i], all[j]] = [all[j], all[i]]; db.tx(() => all.forEach((x, k) => db.run('UPDATE locations SET sort=? WHERE id=?', k + 1, x.id))); }
+      ctx.redirect(`/admin/locations#loc-${l.id}`);
+    }, A);
+  }
+
   r.post('/admin/locations/new', (ctx) => {
     const name = str(ctx.body.name, 80); if (!name) throw new HttpError(422, 'Name the location.');
     const id = db.insert('locations', { name, sort: (db.get('SELECT MAX(sort) m FROM locations').m || 0) + 1 });

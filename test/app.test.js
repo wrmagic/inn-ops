@@ -461,6 +461,26 @@ test('checklist ticks save one at a time as they are clicked', async () => {
   assert.match(page, /<noscript><button class="btn">Save pre-check-in list/);
 });
 
+test('locations: ▲ ▼ set the order used everywhere', async () => {
+  const order = () => db.all('SELECT id FROM locations ORDER BY sort, name').map((x) => x.id);
+  const before = order();
+  const second = before[1];
+  let r = await post(`/admin/locations/${second}/up`, {});
+  assert.equal(r.status, 303); assert.match(r.location, new RegExp(`#loc-${second}$`));
+  assert.equal(order()[0], second);
+  await post(`/admin/locations/${second}/up`, {}); // already first
+  assert.equal(order()[0], second);
+  await post(`/admin/locations/${second}/down`, {});
+  assert.deepEqual(order(), before);
+  // the date book follows the order
+  await post(`/admin/locations/${before[before.length - 1]}/up`, {});
+  const now = order(); const dbk = (await get('/datebook?days=7')).text;
+  const names = now.map((id) => db.get('SELECT name FROM locations WHERE id=?', id).name).filter((n) => dbk.includes(`</span>${n} <a`));
+  const pos = names.map((n) => dbk.indexOf(`</span>${n} <a`));
+  assert.deepEqual([...pos].sort((a, b) => a - b), pos);
+  assert.match((await get('/admin/locations')).text, new RegExp(`Move [^"]+ up" disabled`));
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

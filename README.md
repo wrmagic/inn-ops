@@ -7,7 +7,8 @@ completely on its own: its own website, its own database and its own logins.
 
 - **Locations and rooms**: each location has its own check-in and checkout times, buy-out rates, directions and
   instructions for guests, and staff notes. Each room has a name, description, how many it sleeps, rates, and
-  its own times and instructions if they differ from the location's.
+  its own times and instructions if they differ from the location's. Use the ▲ ▼ buttons on the locations list to set the order
+  locations appear in everywhere (date book, calendar, check-in, reports, lists).
 - **Weekday and weekend rates**: every room and every buy-out has a weekday rate (Sunday–Thursday nights) and a
   weekend rate (Friday and Saturday nights). Leave the weekend rate blank to charge the weekday rate. A stay is
   priced night by night, and the reservation shows how many weeknights and weekend nights it has.

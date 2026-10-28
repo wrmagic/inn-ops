@@ -209,3 +209,4 @@ details.ci-list[open] > summary .cl-count::after { content: ' ▴'; }
 .cl-items li.saving { opacity: .55; }
 
 .loc-legend .lg-in i { background: #fff; border: 2px solid #111; box-sizing: border-box; }
+.mv-col { width: 76px; white-space: nowrap; }
