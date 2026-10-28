@@ -35,13 +35,8 @@ module.exports = (r, { db }) => {
       const days = []; for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
       const f = fromISO(first);
       body = html`<div class="cal-bar">${navBar(`${MON_LONG[f.getUTCMonth()]} ${f.getUTCFullYear()}`, `?view=month&date=${addMonths(first, -1)}${loc ? `&location=${loc}` : ''}`, `?view=month&date=${addMonths(first, 1)}${loc ? `&location=${loc}` : ''}`, `?view=month${loc ? `&location=${loc}` : ''}`)}${locFilter(ctx, loc, { view, date })}</div>
-        <div class="month"><div class="mo-head">${DOW3.map((d) => html`<div>${d}</div>`)}</div>
-        <div class="mo-grid">${days.map((d) => { const here = all.filter((x) => x.arrive <= d && x.depart > d); const outs = all.filter((x) => x.depart === d).length;
-          return html`<div class="mo-day ${d.slice(0, 7) !== first.slice(0, 7) ? 'out' : ''} ${d === today ? 'today' : ''}">
-            <a class="mo-n" href="/datebook?from=${d}${loc ? `&location=${loc}` : ''}" title="Open the date book from this day">${fromISO(d).getUTCDate()}</a>
-            ${here.slice(0, 5).map((x) => chip(x, d, true))}${here.length > 5 ? html`<a class="more" href="/calendar?view=list&date=${d}${loc ? `&location=${loc}` : ''}">${here.length - 5} more</a>` : ''}
-            ${outs ? html`<small class="mo-outs">${outs} leaving</small>` : ''}
-            <a class="wk-add" href="/reservations/new?arrive=${d}${loc ? `&location=${loc}` : ''}" aria-label="New reservation arriving ${dateFmt(d)}">+</a></div>`; })}</div></div>${legend()}`;
+        <div class="month mo-bars"><div class="mo-head">${DOW3.map((d) => html`<div>${d}</div>`)}</div>
+        ${weeks(days, all, first, today, loc)}</div>${legend()}`;
     } else {
       const from = date; const to = addDays(date, 29);
       const all = stays(from, to, loc);
@@ -57,6 +52,31 @@ module.exports = (r, { db }) => {
     ctx.html(layout(ctx, { title: 'Calendar', body: html`${pageHead('Calendar', html`<a class="btn ghost" href="/datebook">Date book</a><a class="btn primary" href="/reservations/new">New reservation</a>`)}
       <nav class="tabs"><a href="?view=month${loc ? `&location=${loc}` : ''}" class="${view === 'month' ? 'on' : ''}">Month</a><a href="?view=list${loc ? `&location=${loc}` : ''}" class="${view === 'list' ? 'on' : ''}">List</a></nav>${body}` }));
   });
+  /** Month weeks: day squares behind, and each stay drawn as one bar across the nights it covers (arrival day through
+   *  the last night), carried on into the next week's row when it runs past Saturday. */
+  function weeks(days, all, first, today, loc) {
+    const out = [];
+    for (let w = 0; w < days.length; w += 7) {
+      const wk = days.slice(w, w + 7); const ws = wk[0]; const we = wk[6];
+      const segs = all.filter((x) => x.arrive <= we && R.lastNight(x) >= ws).map((x) => {
+        const s0 = x.arrive < ws ? 0 : daysBetween(ws, x.arrive); const e0 = R.lastNight(x) > we ? 6 : daysBetween(ws, R.lastNight(x));
+        return { x, s0, e0, contL: x.arrive < ws, contR: R.lastNight(x) > we };
+      }).sort((a, b) => a.s0 - b.s0 || (b.e0 - b.s0) - (a.e0 - a.s0) || a.x.id - b.x.id);
+      // lanes: the first row a bar fits in without overlapping
+      const lanes = [];
+      for (const sg of segs) { let i = 0; while (lanes[i] && lanes[i].some((o) => !(sg.e0 < o.s0 || sg.s0 > o.e0))) i++; (lanes[i] = lanes[i] || []).push(sg); sg.lane = i; }
+      const outs = (d) => all.filter((x) => x.depart === d).length;
+      out.push(html`<div class="mo-week" style="--lanes:${Math.max(lanes.length, 1)}">
+        ${wk.map((d, i) => html`<div class="mo-cell ${d.slice(0, 7) !== first.slice(0, 7) ? 'out' : ''} ${d === today ? 'today' : ''}" style="grid-column:${i + 1}">
+          <a class="mo-n" href="/datebook?from=${d}${loc ? `&location=${loc}` : ''}" title="Open the date book from this day">${fromISO(d).getUTCDate()}</a>
+          <div class="mo-foot"><a class="wk-add" href="/reservations/new?arrive=${d}${loc ? `&location=${loc}` : ''}" aria-label="New reservation arriving ${dateFmt(d)}">+</a>${outs(d) ? html`<small class="mo-outs">${outs(d)} leaving</small>` : ''}</div></div>`)}
+        ${segs.map((sg) => { const x = sg.x; return html`<a class="mo-bar st-${x.status}${sg.contL ? ' cont-l' : ''}${sg.contR ? ' cont-r' : ''}${x.kind === 'buyout' ? ' buyout' : ''}" href="/reservations/${x.id}"
+          style="grid-column:${sg.s0 + 1} / ${sg.e0 + 2};grid-row:${sg.lane + 2};--c:${x.color}" title="${x.guest} · ${x.short} · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)} · ${R.STATUS[x.status].label}">
+          <b>${x.guest}</b><small> · ${x.short}</small></a>`; })}
+      </div>`);
+    }
+    return out;
+  }
   const navBar = (title, prev, next, today) => html`<div class="cal-nav"><a class="btn small ghost" href="${prev}" aria-label="Earlier">‹</a><a class="btn small ghost" href="${today}">Today</a><a class="btn small ghost" href="${next}" aria-label="Later">›</a><b class="cal-title">${title}</b></div>`;
 
   // ---------- Date book: rooms down the side, days across, stays drawn as bars (afternoon arrival to morning departure)

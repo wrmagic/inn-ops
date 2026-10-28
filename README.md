@@ -39,7 +39,8 @@ completely on its own: its own website, its own database and its own logins.
   location's note, with a private link to see them any time. No prices. The reservation shows when they were last sent.
 - **No double bookings**: a room can't be booked twice for the same night, and a buy-out can't overlap any booking
   at that location. A guest can arrive the same day the last one leaves.
-- **Calendar** (Calendar): a month view and a list, with every stay on each night it covers. Click + on a day to book.
+- **Calendar** (Calendar): a month view and a list. In the month, each stay is one bar from its arrival day through its
+  last night (like Google Calendar), carried on into the next week's row; departures show as "leaving". Click + on a day to book.
 - **Date book** (Date book): every room on its own line, 7, 14 or 30 days at a time. Each stay is a bar from the
   afternoon it arrives to the morning it leaves. Click a bar to open the stay, or an empty day to book that room.
   A buy-out shows on the location's own **Full buy-out** line (guest, event, number of adults); on the room lines below
