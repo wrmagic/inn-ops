@@ -1035,3 +1035,26 @@
   const watch = () => document.querySelectorAll('form > .form-actions').forEach((el) => { if (!el.dataset.stick) { el.dataset.stick = 1; io.observe(el); } });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
 })();
+
+// Password boxes: an eye button to show or hide what's typed
+(() => {
+  const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const SHUT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.2 4.2M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+  const add = (root) => (root.querySelectorAll ? root.querySelectorAll('input[type=password]:not([data-eye])') : []).forEach((inp) => {
+    inp.dataset.eye = '1';
+    const wrap = document.createElement('span'); wrap.className = 'pw-wrap';
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pw-eye'; b.innerHTML = EYE;
+    b.setAttribute('aria-label', 'Show password'); b.title = 'Show password';
+    b.addEventListener('click', () => {
+      const show = inp.type === 'password'; inp.type = show ? 'text' : 'password';
+      b.innerHTML = show ? SHUT : EYE; const t = show ? 'Hide password' : 'Show password'; b.setAttribute('aria-label', t); b.title = t;
+      inp.focus();
+    });
+    wrap.appendChild(b);
+  });
+  const start = () => { add(document); new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) add(n); }))).observe(document.body, { childList: true, subtree: true }); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  // A form being sent puts the box back to hidden, so browsers still offer to save the password
+  document.addEventListener('submit', (e) => e.target.querySelectorAll('input[data-eye]').forEach((i) => { i.type = 'password'; }), true);
+})();

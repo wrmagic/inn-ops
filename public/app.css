@@ -1940,3 +1940,11 @@ form > .form-actions.is-stuck { background: var(--surface, #fff); border: 1px so
   padding: 10px 14px; box-shadow: 0 -8px 18px -10px rgba(40, 20, 60, .28); }
 body.m form > .form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
 @media print { form > .form-actions { position: static; } }
+
+/* Password boxes: the eye button to show what's typed */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap > input { width: 100%; padding-right: 44px; box-sizing: border-box; }
+.pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--muted, #6b6478); cursor: pointer; border-radius: 8px; padding: 0; }
+.pw-eye:hover { color: var(--velvet, #3d2156); background: rgba(61, 33, 86, .06); }
+.pw-eye svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
