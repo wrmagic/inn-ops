@@ -47,6 +47,11 @@ Read this first. The README is the user guide; keep both up to date.
 - Check-in desk: `routes/checkin.js` `/checkin?loc=<id|all>&d=` (location remembered in cookie `checkin_loc`; `open=<kind><resId>`
   reopens a list after saving). Arriving (+ overdue not checked in) and leaving cards with steps; posts to the existing
   status/checks routes with `next` back to the desk.
+- Emergency contacts + check-in details: table `location_contacts` (edited on the location page, `ec_*[]` rows);
+  `reservations.emergency_contact_id` (picked in Needs and notes; `stayinfo.emergencyOf` falls back to the location's first).
+  `lib/stayinfo.js`: `message()` (subject/text/sms, no prices, no staff comments), `card()`, `sendBox()` (Text = `sms:` link,
+  Email = server send via `lib/mail.js` (copied from EMP; RESEND_API_KEY/MAIL_FROM) or `mailto:`), private page
+  `/stay/:token` (`reservations.token`), `POST /reservations/:id/send-details`, `/details-sent` (logged by inn.js on click).
 - Lists in pages: `lib/paging.js` (from EMP; `paging(ctx, key, total)` → `limit/offset/nav()`, `pageRows` for in-memory
   lists; 20/50/100/All remembered in a `per_<key>` cookie). Used by `/reservations` and `/guests`.
 - Phone version: `routes/mobile.js` (`/m` today with ‹ › days, `/m/checkin` (phone check-in desk, same cookie `checkin_loc`), `/m/upcoming`, `/m/find`, `/m/r/:id`, `POST /m/r/:id/comment`

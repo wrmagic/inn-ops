@@ -7,6 +7,7 @@ const { str, int, arr, own, now, isDate, isTime, addDays, todayIn } = require('.
 const { HttpError } = require('../lib/http');
 const R = require('../lib/res');
 const CL = require('../lib/checklists');
+const SI = require('../lib/stayinfo');
 const { paging } = require('../lib/paging');
 
 const METHODS = [['cash', 'Cash'], ['check', 'Check'], ['card', 'Card'], ['zelle', 'Zelle'], ['venmo', 'Venmo'], ['paypal', 'PayPal'], ['other', 'Other']];
@@ -95,6 +96,9 @@ module.exports = (r, { db }) => {
         ${field('Special needs', textarea('special_needs', x.special_needs, { rows: 2, placeholder: 'Accessibility, allergies, crib, early check-in…' }))}
         ${field('Special instructions', textarea('special_instructions', x.special_instructions, { rows: 2, placeholder: 'For the guest: arrival, keys, parking. Printed on the confirmation.' }))}
         ${field('Comments about the rental', textarea('comments', x.comments, { rows: 3, placeholder: 'For staff only.' }))}
+        ${(() => { const ecs = db.all('SELECT * FROM location_contacts ORDER BY location_id, sort, id'); const cur = x.emergency_contact_id || (ecs.find((c) => c.location_id === loc.id) || {}).id;
+          return field('Emergency contact', html`<select name="emergency_contact_id" data-res-ec><option value="">None</option>${ecs.map((c) => html`<option value="${c.id}" data-loc="${c.location_id}"${c.id === cur ? raw(' selected') : ''}${c.location_id === loc.id ? '' : raw(' hidden')}>${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}</option>`)}</select>`,
+            { hint: html`Who the guest calls in an emergency; it goes in their check-in details. Each location’s contacts are set under <a href="/admin/locations/${loc.id}">Admin › Locations and rooms</a>.` }); })()}
       </section>
       <section class="panel"><h2>Money</h2>
         <div class="grid g4">
@@ -132,6 +136,7 @@ module.exports = (r, { db }) => {
       adults: nn(b.adults), children: nn(b.children), status, buyout_rate_cents: kind === 'buyout' ? toCents(b.buyout_rate) ?? loc.buyout_rate_cents ?? 0 : null,
       buyout_weekend_rate_cents: kind === 'buyout' ? toCents(b.buyout_wrate) ?? loc.buyout_weekend_rate_cents ?? toCents(b.buyout_rate) ?? loc.buyout_rate_cents ?? 0 : null,
       discount_cents: Math.max(0, toCents(b.discount) || 0), deposit_cents: Math.max(0, toCents(b.deposit) || 0), deposit_due: isDate(b.deposit_due) ? b.deposit_due : null,
+      emergency_contact_id: int(b.emergency_contact_id) && db.get('SELECT 1 FROM location_contacts WHERE id=? AND location_id=?', int(b.emergency_contact_id), loc.id) ? int(b.emergency_contact_id) : null,
       special_needs: str(b.special_needs, 4000), special_instructions: str(b.special_instructions, 4000), comments: str(b.comments, 6000), updated_at: now() };
     const rooms = chosen.map((ro) => { const rate = Math.max(0, toCents(b[`rate_${ro.id}`]) ?? ro.rate_cents); return { room_id: ro.id, rate_cents: rate,
       weekend_rate_cents: Math.max(0, toCents(b[`wrate_${ro.id}`]) ?? ro.weekend_rate_cents ?? rate), occupants: str(b[`occ_${ro.id}`], 300) }; });
@@ -222,6 +227,7 @@ module.exports = (r, { db }) => {
             ${x.special_needs ? html`<dt>Special needs</dt><dd class="pre">${x.special_needs}</dd>` : ''}
             ${x.special_instructions ? html`<dt>Special instructions</dt><dd class="pre">${x.special_instructions}</dd>` : ''}
             ${x.comments ? html`<dt>Comments</dt><dd class="pre">${x.comments}</dd>` : ''}</dl></section>` : ''}
+          ${(() => { const ec = SI.emergencyOf(db, x); return ec ? html`<section class="panel"><h2>Emergency contact</h2><p><b>${ec.name}</b>${ec.role ? ` · ${ec.role}` : ''}${ec.phone ? html` · <a href="tel:${ec.phone}">${ec.phone}</a>` : ''}</p></section>` : ''; })()}
         </div>
         <div class="stack">
           <section class="panel"><h2>Money</h2>
@@ -240,6 +246,9 @@ module.exports = (r, { db }) => {
                 ${field('Date', input('received_on', today, { type: 'date' }))}${field('Reference', input('reference', '', { maxlength: 60, placeholder: 'Check #, last 4…' }))}</div>
               <div class="form-actions"><button class="btn">Record payment</button><label class="check"><input type="checkbox" name="refund" value="1"><span>This is a refund</span></label></div></form>` : ''}
           </section>
+          ${x.status !== 'cancelled' ? html`<section class="panel" id="details"><h2>Check-in details for the guest</h2>
+            <p class="hint">Their rooms, check-in and checkout times, special needs, instructions and emergency contact. No prices.</p>
+            ${SI.sendBox(ctx, db, x, { next: `/reservations/${x.id}#details` })}</section>` : ''}
           <section class="panel"><h2>Status</h2><p>${badge(st.label, st.badge)}</p>
             <div class="form-actions wrap">
               ${x.status === 'tentative' ? action('confirmed', 'Confirm') : ''}
@@ -277,6 +286,27 @@ module.exports = (r, { db }) => {
     const p = CL.progress(CL.forReservation(db, x, kind));
     ctx.json({ ok: true, on, by: on ? ctx.user.name : '', at: on ? dateTimeFmt(at, ctx.settings.timezone) : '', done: p.done, total: p.total });
   });
+
+  // ---------- Check-in details for the guest (no prices): email through the email service, or note a text/email sent from the device
+  r.post('/reservations/:id/send-details', async (ctx) => {
+    const x = own(db, 'reservations', ctx.params.id);
+    const ok = await SI.sendEmail(ctx, db, x);
+    ctx.setFlash(ok ? 'Check-in details emailed.' : 'The email couldn’t be sent. Check the guest’s email address, or use Text instead.', ok ? 'ok' : 'warn');
+    ctx.redirect(ctx.back(`/reservations/${x.id}#details`));
+  });
+  r.post('/reservations/:id/details-sent', (ctx) => {
+    const x = own(db, 'reservations', ctx.params.id);
+    SI.markSent(db, x, ctx.user.id, ['text', 'email-app'].includes(ctx.body.how) ? ctx.body.how : 'text');
+    ctx.json({ ok: true });
+  });
+  // The guest's private link: their check-in details, no sign-in needed
+  r.get('/stay/:token', (ctx) => {
+    const x = db.get("SELECT * FROM reservations WHERE token=? AND status<>'cancelled'", String(ctx.params.token || ''));
+    if (!x || String(ctx.params.token).length < 10) throw new HttpError(404, 'We couldn’t find those check-in details. The link may be incomplete.');
+    const f = SI.facts(db, x, ctx.settings);
+    ctx.html(bare(ctx, { title: `Your stay at ${f.where}`, cls: 'stay-page', body: html`<main class="stay-wrap"><p class="stay-hi">Hi ${f.first || 'there'}, here are your check-in details.</p>${SI.card(f)}
+      <p class="no-print"><button type="button" class="btn ghost" data-print>${icon('print')} Print</button></p></main>` }));
+  }, { public: true });
 
   r.post('/reservations/:id/checks', (ctx) => {
     const x = own(db, 'reservations', ctx.params.id); const kind = CL.KINDS[ctx.body.kind] ? ctx.body.kind : null;
@@ -331,6 +361,7 @@ module.exports = (r, { db }) => {
           <tr><td><b>Total</b></td><td class="num"><b>${money(t.total)}</b></td></tr><tr><td>Paid</td><td class="num">${money(t.paid)}</td></tr>
           <tr><td><b>${t.balance < 0 ? 'Credit' : 'Balance'}</b></td><td class="num"><b>${money(Math.abs(t.balance))}</b></td></tr>
           ${t.depositOwed ? html`<tr><td>Deposit due${x.deposit_due ? ` by ${dateFmt(x.deposit_due)}` : ''}</td><td class="num">${money(t.depositOwed)}</td></tr>` : ''}</tbody></table>
+        ${(() => { const ec = SI.emergencyOf(db, x); return ec ? html`<p><b>In an emergency:</b> ${ec.name}${ec.role ? ` (${ec.role})` : ''}${ec.phone ? ` · ${ec.phone}` : ''}</p>` : ''; })()}
         ${(loc && loc.confirm_note) || s.confirm_note ? html`<p class="pre c-note">${(loc && loc.confirm_note) || s.confirm_note}</p>` : ''}
       </article>` }));
   });

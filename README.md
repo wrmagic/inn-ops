@@ -28,6 +28,14 @@ completely on its own: its own website, its own database and its own logins.
   gets its list as tick boxes (the checkout list appears once the guest is checked in). Each tick or untick is saved
   the moment you click it (no Save button), and each tick shows who did it and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the
   guest in and out. The same lists are on the phone version.
+- **Emergency contacts**: each location's page (Admin › Locations and rooms) has an **Emergency contacts** block (name,
+  role, phone; as many as you like). On a reservation, **Needs and notes** has an **Emergency contact** choice from that
+  location's contacts (the first is picked to start with).
+- **Check-in details for the guest** (on the reservation, the Check-in page and the phone): **Text** opens your phone's
+  messages with the details ready to send; **Email** sends them (with the email service set up, below) or opens your
+  email program with them filled in; **View** shows the guest's page. The details have their location and address,
+  rooms and who's in each, check-in and checkout times, special needs, instructions, the emergency contact and the
+  location's note, with a private link to see them any time. No prices. The reservation shows when they were last sent.
 - **No double bookings**: a room can't be booked twice for the same night, and a buy-out can't overlap any booking
   at that location. A guest can arrive the same day the last one leaves.
 - **Calendar** (Calendar): a month view and a list, with every stay on each night it covers. Click + on a day to book.
@@ -70,6 +78,9 @@ completely on its own: its own website, its own database and its own logins.
      location, its usual check-in/checkout times, lodging tax and the note printed on its confirmations.
    - **Admin → Locations and rooms**: the four locations are already there; open each one and add its rooms and rates.
    - **Admin → Logins**: add a login for each staff member (Staff can do everything but Admin).
+
+To email check-in details from the app, add `RESEND_API_KEY` and `MAIL_FROM` in Render (the same Resend account as
+Event Master Plus works; `MAIL_FROM` like `The Inn <stay@wrmagic.com>`). Without them, **Email** opens your own email program.
 
 The database lives on Render's disk at `/data/innops.db`, so it survives redeploys. Pushing to `main` redeploys.
 

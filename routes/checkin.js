@@ -6,6 +6,7 @@ const { layout, csrfField, pageHead, badge, icon } = require('../lib/views');
 const { int, isDate, addDays, todayIn } = require('../lib/common');
 const R = require('../lib/res');
 const CL = require('../lib/checklists');
+const SI = require('../lib/stayinfo');
 
 module.exports = (r, { db }) => {
   r.get('/checkin', (ctx) => {
@@ -58,7 +59,8 @@ module.exports = (r, { db }) => {
           ${mode === 'arrive' ? html`
             ${listStep(x, 'precheck', pre, preP, open === `precheck${x.id}`)}
             <div class="ci-step"><span class="ci-label">Check-in</span>${isIn ? html`<span class="ci-done">${icon('key')} Checked in ${dateTimeFmt(x.checked_in_at, s.timezone)}${by(x.checked_in_by) ? ` by ${by(x.checked_in_by)}` : ''}</span>`
-              : statusBtn(x, 'checked_in', 'Check in', notAll(preP, 'pre-check-in'))}</div>` : ''}
+              : statusBtn(x, 'checked_in', 'Check in', notAll(preP, 'pre-check-in'))}</div>
+            <div class="ci-step ci-send"><span class="ci-label">Send check-in details</span>${SI.sendBox(ctx, db, x, { next: here(`#r${x.id}`), compact: true })}</div>` : ''}
           ${isIn || mode === 'leave' ? html`
             ${listStep(x, 'checkout', out, outP, open === `checkout${x.id}`)}
             <div class="ci-step"><span class="ci-label">Checkout</span>${isOut ? html`<span class="ci-done">Checked out ${dateTimeFmt(x.checked_out_at, s.timezone)}${by(x.checked_out_by) ? ` by ${by(x.checked_out_by)}` : ''}</span>`

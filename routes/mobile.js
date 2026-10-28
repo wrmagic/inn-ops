@@ -7,6 +7,7 @@ const { HttpError } = require('../lib/http');
 const { str, isDate, addDays, todayIn, own, now } = require('../lib/common');
 const R = require('../lib/res');
 const CL = require('../lib/checklists');
+const SI = require('../lib/stayinfo');
 
 const CSS2 = CSS.replace('/app.css', '/inn.css');
 const TABS = [['/m', 'Today', 'home'], ['/m/checkin', 'Check-in', 'door'], ['/m/upcoming', 'Coming up', 'cal'], ['/m/find', 'Find', 'search'], ['/', 'Full site', 'screen']];
@@ -121,7 +122,8 @@ module.exports = (r, { db }) => {
         ${t.balance > 0 ? html`<p class="mci-due">${money(t.balance)} due</p>` : ''}
         ${mode === 'arrive' ? html`${step(x, 'precheck', pre, preP)}
           <div class="mci-step"><span class="mci-label">Check-in</span>${isIn ? html`<span class="ci-done">Checked in ${dateTimeFmt(x.checked_in_at, s.timezone)}${by(x.checked_in_by) ? ` by ${by(x.checked_in_by)}` : ''}</span>`
-            : btn(ctx, x, 'checked_in', 'Check in', here(`#r${x.id}`), 'primary big', notAll(preP, 'pre-check-in'))}</div>` : ''}
+            : btn(ctx, x, 'checked_in', 'Check in', here(`#r${x.id}`), 'primary big', notAll(preP, 'pre-check-in'))}</div>
+          <div class="mci-step"><span class="mci-label">Send check-in details</span>${SI.sendBox(ctx, db, x, { next: here(`#r${x.id}`) })}</div>` : ''}
         ${isIn || mode === 'leave' ? html`${step(x, 'checkout', out, outP)}
           <div class="mci-step"><span class="mci-label">Checkout</span>${x.status === 'checked_out' ? html`<span class="ci-done">Checked out ${dateTimeFmt(x.checked_out_at, s.timezone)}${by(x.checked_out_by) ? ` by ${by(x.checked_out_by)}` : ''}</span>`
             : x.status === 'checked_in' ? btn(ctx, x, 'checked_out', 'Check out', here(`#r${x.id}`), 'primary big', notAll(outP, 'checkout')) : html`<span class="muted small">Not checked in yet</span>`}</div>` : ''}
@@ -196,6 +198,8 @@ module.exports = (r, { db }) => {
         ${main || undo ? html`<div class="m-actions">${main}${undo}</div>` : ''}
       </section>
       ${block('Special needs', x.special_needs, 'need')}
+      ${(() => { const ec = SI.emergencyOf(db, x); return ec ? html`<section class="m-card"><h2 class="m-sub">Emergency contact</h2><p><b>${ec.name}</b>${ec.role ? ` · ${ec.role}` : ''}${ec.phone ? html` · <a href="tel:${ec.phone}">${ec.phone}</a>` : ''}</p></section>` : ''; })()}
+      ${x.status === 'cancelled' ? '' : html`<section class="m-card"><h2 class="m-sub">Send check-in details</h2>${SI.sendBox(ctx, db, x, { next: here })}</section>`}
       ${x.status === 'cancelled' ? '' : html`${['tentative', 'confirmed'].includes(x.status) ? clCard('precheck', pre, preP) : ''}${['checked_in', 'checked_out'].includes(x.status) || x.depart <= today ? clCard('checkout', out, outP) : ''}`}
       ${block('Comments', x.comments, 'note')}
       ${block('Special instructions for the guest', x.special_instructions)}

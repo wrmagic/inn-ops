@@ -505,6 +505,59 @@ test('phone check-in tab: by location and day with each guest’s steps', async 
   assert.match(page, /Checking out/); assert.match(page, new RegExp(`id="r${id}"`));
 });
 
+test('emergency contacts and check-in details for the guest (text, email, private link, no prices)', async () => {
+  // Contacts on the location
+  const room = (id, name, rate) => [['room_id[]', String(id)], ['room_name[]', name], ['room_rate[]', rate], ['room_wrate[]', ''], ['room_max[]', '2'], ['room_active[]', '1'],
+    ['room_desc[]', ''], ['room_in[]', ''], ['room_out[]', ''], ['room_plist[]', ''], ['room_clist[]', ''], ['room_instr[]', id === roomB ? 'Key is in the blue lockbox' : ''], ['room_notes[]', '']];
+  const loc = db.get('SELECT * FROM locations WHERE id=?', locId);
+  let r = await post(`/admin/locations/${locId}`, [['name', 'Test Cottage'], ['buyout_rate', '500'], ['precheck_list_id', String(loc.precheck_list_id || '')], ['checkout_list_id', String(loc.checkout_list_id || '')], ['tax_percent', '10'],
+    ['ec_id[]', ''], ['ec_name[]', 'Maria Lopez'], ['ec_role[]', 'On-site manager'], ['ec_phone[]', '8055550142'],
+    ['ec_id[]', ''], ['ec_name[]', 'Sam Night'], ['ec_role[]', 'After hours'], ['ec_phone[]', '8055550199'],
+    ...room(roomA, 'Upstairs', '100'), ...room(roomB, 'Downstairs', '80.50')]);
+  assert.equal(r.status, 303);
+  const ecs = db.all('SELECT * FROM location_contacts WHERE location_id=? ORDER BY sort', locId);
+  assert.deepEqual(ecs.map((c) => c.name), ['Maria Lopez', 'Sam Night']);
+  assert.match((await get(`/admin/locations/${locId}`)).text, /On-site manager/);
+  // A stay picking the after-hours contact
+  r = await post('/reservations/new', booking([['room_ids[]', String(roomB)], ['occ_' + roomB, 'Pat & Sam'], ['emergency_contact_id', String(ecs[1].id)]]).map(([k, v]) => (k === 'arrive' ? [k, '2031-10-01'] : k === 'depart' ? [k, '2031-10-03'] : [k, v])));
+  const id = Number(r.location.split('/').pop());
+  assert.equal(db.get('SELECT emergency_contact_id FROM reservations WHERE id=?', id).emergency_contact_id, ecs[1].id);
+  const form = (await get(`/reservations/${id}/edit`)).text;
+  assert.match(form, new RegExp(`value="${ecs[1].id}" data-loc="${locId}" selected`));
+  let page = (await get(`/reservations/${id}`)).text;
+  assert.match(page, /Check-in details for the guest/); assert.match(page, /Sam Night/);
+  assert.match(page, /href="sms:/); assert.match(page, /href="mailto:pat@example.com\?subject=/);
+  // The message: rooms, times, needs, instructions, emergency contact, link; never prices
+  const SI = require('../lib/stayinfo');
+  const x = db.get('SELECT * FROM reservations WHERE id=?', id);
+  const m = SI.message(db, x, db.settings(), 'https://inn.example');
+  for (const t of ['Downstairs (Pat & Sam)', 'Key is in the blue lockbox', 'Ground floor please', 'Use the side gate', 'Sam Night (After hours): (805) 555-0199', 'Check-in: Wednesday, October 1, 2031', 'Checkout: Friday, October 3, 2031']) assert.ok(m.text.includes(t), t);
+  assert.doesNotMatch(m.text + m.sms, /\$\d/, 'no prices');
+  assert.doesNotMatch(m.text, /Returning guest/, 'staff comments stay private');
+  assert.match(m.sms, /Details: https:\/\/inn\.example\/stay\//);
+  // The guest's private link opens without signing in
+  const tok = db.get('SELECT token FROM reservations WHERE id=?', id).token;
+  const pub = await fetch(`${base}/stay/${tok}`);
+  const pubText = await pub.text();
+  assert.equal(pub.status, 200); assert.match(pubText, /Sam Night/); assert.doesNotMatch(pubText, /\$\d/);
+  assert.equal((await fetch(`${base}/stay/nope-nope-nope`)).status, 404);
+  // Noting a text sent from the phone, and an email with no email service set up
+  r = await post(`/reservations/${id}/details-sent`, { how: 'text' });
+  assert.equal(JSON.parse(r.text).ok, true);
+  assert.equal(db.get('SELECT details_sent_how FROM reservations WHERE id=?', id).details_sent_how, 'text');
+  assert.match((await get(`/reservations/${id}`)).text, /Last sent by text/);
+  r = await post(`/reservations/${id}/send-details`, { next: `/reservations/${id}#details` });
+  assert.equal(r.status, 303);
+  // On the Check-in page and the phone
+  assert.match((await get(`/checkin?loc=${locId}&d=2031-10-01`)).text, /Send check-in details/);
+  assert.match((await get(`/m/r/${id}`)).text, /Send check-in details/);
+  // Removing a contact clears it from stays
+  await post(`/admin/locations/${locId}`, [['name', 'Test Cottage'], ['buyout_rate', '500'], ['tax_percent', '10'], ['ec_id[]', String(ecs[0].id)], ['ec_name[]', 'Maria Lopez'], ['ec_role[]', ''], ['ec_phone[]', ''],
+    ...room(roomA, 'Upstairs', '100'), ...room(roomB, 'Downstairs', '80.50')]);
+  assert.equal(db.get('SELECT emergency_contact_id FROM reservations WHERE id=?', id).emergency_contact_id, null);
+  assert.equal(SI.emergencyOf(db, db.get('SELECT * FROM reservations WHERE id=?', id)).name, 'Maria Lopez', 'falls back to the location’s first contact');
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

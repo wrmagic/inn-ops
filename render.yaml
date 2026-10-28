@@ -18,3 +18,7 @@ services:
         sync: false          # e.g. https://innops.onrender.com
       - key: ADMIN_PASSWORD
         sync: false          # password for the "admin" login, used on first start only
+      - key: RESEND_API_KEY
+        sync: false          # optional: send check-in details by email through Resend
+      - key: MAIL_FROM
+        sync: false          # optional: the sender, e.g. The Inn <stay@yourdomain.com>

@@ -139,6 +139,16 @@ module.exports = (r, { db }) => {
         ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }))}
         ${field('Staff notes', textarea('notes', l.notes, { rows: 2 }))}
       </section>
+      <section class="panel"><h2>Emergency contacts</h2>
+        <p class="hint">Who guests here call in an emergency. Each reservation picks one (the first is the usual one); it goes in the check-in details sent to the guest.</p>
+        <div class="rows ec-rows" data-rows>${db.all('SELECT * FROM location_contacts WHERE location_id=? ORDER BY sort, id', l.id).concat([{}]).map((c) => html`<div class="row ec-row" data-row>
+          <input type="hidden" name="ec_id[]" value="${c.id || ''}">
+          ${field('Name', input('ec_name[]', c.name, { maxlength: 100, placeholder: c.id ? '' : 'e.g. Maria Lopez' }))}
+          ${field('Role', input('ec_role[]', c.role, { maxlength: 100, placeholder: 'e.g. On-site manager' }))}
+          ${field('Phone', input('ec_phone[]', c.phone, { type: 'tel', maxlength: 40 }))}
+          <button type="button" class="btn ghost small danger" data-remove-row aria-label="Remove this contact">${icon('x')}</button></div>`)}</div>
+        <button type="button" class="btn ghost small" data-add-row>Add another contact</button>
+      </section>
       <section class="panel"><h2>Rooms <small class="muted">${rooms.filter((x) => x.active).length} in use</small></h2>
         <div class="rows room-rows" data-rows>${rows.map(room)}</div>
         <button type="button" class="btn ghost small" data-add-row>Add another room</button>
@@ -164,6 +174,18 @@ module.exports = (r, { db }) => {
         if (rid && db.get('SELECT 1 FROM rooms WHERE id=? AND location_id=?', rid, l.id)) { db.update('rooms', rid, rec); kept.add(rid); }
         else kept.add(db.insert('rooms', { ...rec, location_id: l.id }));
       });
+      // Emergency contacts: update, add, and remove the ones taken off the page
+      const ecIds = arr(b.ec_id); const keptEc = new Set();
+      arr(b.ec_name).forEach((n, i) => {
+        const name = str(n, 100); if (!name) return;
+        const rec = { name, role: str(col('ec_role', i), 100), phone: phone(col('ec_phone', i)), sort: i };
+        const id = int(ecIds[i]);
+        if (id && db.get('SELECT 1 FROM location_contacts WHERE id=? AND location_id=?', id, l.id)) { db.update('location_contacts', id, rec); keptEc.add(id); }
+        else keptEc.add(db.insert('location_contacts', { ...rec, location_id: l.id }));
+      });
+      for (const c of db.all('SELECT id FROM location_contacts WHERE location_id=?', l.id)) if (!keptEc.has(c.id)) {
+        db.run('UPDATE reservations SET emergency_contact_id=NULL WHERE emergency_contact_id=?', c.id); db.run('DELETE FROM location_contacts WHERE id=?', c.id);
+      }
       // Rooms taken off the page: removed, or set "not in use" if they've been booked
       for (const ro of db.all('SELECT id FROM rooms WHERE location_id=?', l.id)) {
         if (kept.has(ro.id)) continue;

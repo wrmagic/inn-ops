@@ -116,3 +116,27 @@
     } finally { if (li) li.classList.remove('saving'); }
   });
 })();
+
+// Reservation form: the emergency contact list shows the chosen location's contacts (its first is picked by default)
+(() => {
+  'use strict';
+  const loc = document.querySelector('[data-res-loc]'); const ec = document.querySelector('[data-res-ec]');
+  if (!loc || !ec) return;
+  loc.addEventListener('change', () => {
+    let first = null;
+    ec.querySelectorAll('option[data-loc]').forEach((o) => { const mine = o.dataset.loc === loc.value; o.hidden = !mine; if (mine && !first) first = o; });
+    const cur = ec.selectedOptions[0];
+    if (!cur || (cur.dataset.loc && cur.dataset.loc !== loc.value)) ec.value = first ? first.value : '';
+  });
+})();
+
+// Check-in details: when Text or Email opens the phone's or computer's own app, note that they were sent
+(() => {
+  'use strict';
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-log-sent]'); if (!a) return;
+    const csrf = (document.querySelector('meta[name=csrf]') || {}).content || '';
+    const body = new URLSearchParams({ _csrf: csrf, how: a.dataset.how || 'text' });
+    try { fetch(`/reservations/${a.dataset.logSent}/details-sent`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body, credentials: 'same-origin', keepalive: true }); } catch { /* not important */ }
+  });
+})();
