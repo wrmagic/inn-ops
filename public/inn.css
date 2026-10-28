@@ -254,3 +254,6 @@ body.stay-page { background: #f4f1f7; margin: 0; }
 .db-bar.bo-room.bo-empty { background: transparent; border: 1.5px solid #c9c4d2; }
 .db-bar.bo-room.st-checked_in { background: #fff; border: 2px solid #111; color: #111; }
 .db-bar.bo-room.bo-empty.st-checked_in { border: 2px solid #999; }
+/* Every row of the date book uses exactly the same columns: nothing in a heading or cell may widen its own row */
+.db-day, .db-cell, .db-bar { contain: inline-size; overflow: hidden; }
+.db-day b, .db-day small { display: block; text-align: center; white-space: nowrap; }
