@@ -1026,3 +1026,12 @@
     setTimeout(poll, 1500);
   }
 })();
+
+// Save buttons stay in view: mark a form's button row while it's stuck to the bottom of the screen (for its shadow)
+(() => {
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((list) => list.forEach((e) => e.target.classList.toggle('is-stuck', e.isIntersecting && e.intersectionRatio < 1)),
+    { threshold: [0, 1], rootMargin: `0px 0px -${document.body && document.body.classList.contains('m') ? 65 : 1}px 0px` });
+  const watch = () => document.querySelectorAll('form > .form-actions').forEach((el) => { if (!el.dataset.stick) { el.dataset.stick = 1; io.observe(el); } });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+})();

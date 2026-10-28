@@ -47,6 +47,9 @@ Read this first. The README is the user guide; keep both up to date.
   app.css plus `.m-res*` in inn.css. Check in/out posts to `/reservations/:id/status` with `next`.
 - Front end: `public/app.css` + `app.js` (from EMP) and `public/inn.css` + `inn.js` (reservation form, date book).
 
+- Save buttons stay in view: `form > .form-actions` is `position: sticky; bottom: 0` (app.css), and app.js adds `.is-stuck`
+  (background + shadow) while it's stuck. Keep each form's button row as a direct child of its `<form>` to get this.
+
 ## Running, testing
 
 - `npm run demo`, `npm start`; or `DATABASE_FILE=/path/x.db PORT=3470 node server.js`.

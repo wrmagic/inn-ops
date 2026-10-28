@@ -1933,3 +1933,10 @@ tr.past-row td { color: var(--muted); }
 .rw-instr { border-left-color: #e0c78a; }
 .blk-toggle { margin-left: auto; margin-right: 12px; font-size: .88rem; } .blk-toggle .check { white-space: nowrap; }
 .agenda-table tr.blk-line td { padding-top: 5px; padding-bottom: 5px; font-size: .9rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .agenda-table tr.blk-line b { color: var(--ink, #2a2438); font-weight: 600; margin-right: 6px; }
+
+/* Save buttons stay in view: on a long form the row of buttons sticks to the bottom of the screen until you reach it */
+form > .form-actions { position: sticky; bottom: 0; z-index: 15; }
+form > .form-actions.is-stuck { background: var(--surface, #fff); border: 1px solid var(--line, #e3deeb); border-bottom: 0; border-radius: 12px 12px 0 0;
+  padding: 10px 14px; box-shadow: 0 -8px 18px -10px rgba(40, 20, 60, .28); }
+body.m form > .form-actions { bottom: calc(64px + env(safe-area-inset-bottom)); }
+@media print { form > .form-actions { position: static; } }
