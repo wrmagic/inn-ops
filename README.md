@@ -36,7 +36,8 @@ completely on its own: its own website, its own database and its own logins.
   Dashed bars are buy-outs; striped bars are tentative; white bars with a black outline are guests checked in.
   A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
 - **Admin** works like Event Master Plus: a home page of tiles (Your business: Business details, Logins; Lodging:
-  Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page.
+  Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page. **Stay defaults**
+  is set per location: check-in and checkout times, lodging tax, and the note on its confirmations.
 - **Check-in** (menu): pick a location (or All; remembered on that computer) and a day (‹ Today ›). **Checking in** lists
   everyone arriving (and anyone due earlier who isn't checked in yet) with their rooms, who's in them, special needs,
   comments and balance. Each guest's steps run in order: **Pre-check-in** (shows "2 of 8" or **Completed**; click to
@@ -63,8 +64,8 @@ completely on its own: its own website, its own database and its own logins.
 2. When it asks, fill in **ADMIN_PASSWORD** (the first password for the `admin` login) and **BASE_URL**
    (the site's web address, e.g. `https://inn-ops.onrender.com`).
 3. Open the site and sign in as `admin`. Then:
-   - **Admin → Business details**: your business name, address and time zone; **Admin → Stay defaults**: usual
-     check-in/checkout times, lodging tax and the confirmation note.
+   - **Admin → Business details**: your business name, address and time zone; **Admin → Stay defaults**: for each
+     location, its usual check-in/checkout times, lodging tax and the note printed on its confirmations.
    - **Admin → Locations and rooms**: the four locations are already there; open each one and add its rooms and rates.
    - **Admin → Logins**: add a login for each staff member (Staff can do everything but Admin).
 

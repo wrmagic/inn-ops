@@ -102,7 +102,7 @@ module.exports = (r, { db }) => {
           ${field('Deposit required', input('deposit', centsInput(x.deposit_cents || null), { inputmode: 'decimal', placeholder: '0.00' }))}
           ${field('Deposit due by', input('deposit_due', x.deposit_due, { type: 'date' }))}
         </div>
-        <p class="hint">Weekday rates × Sunday–Thursday nights, weekend rates × Friday and Saturday nights${Number(ctx.settings.tax_percent) ? `, less the discount, plus ${ctx.settings.tax_percent}% lodging tax` : ', less the discount'}. Payments are recorded on the reservation.</p>
+        <p class="hint">Weekday rates × Sunday–Thursday nights, weekend rates × Friday and Saturday nights, less the discount, plus the location’s lodging tax (set under Admin › Stay defaults). Payments are recorded on the reservation.</p>
       </section>
       <div class="form-actions"><button class="btn primary">${x.id ? 'Save reservation' : 'Book it'}</button><a class="btn ghost" href="${x.id ? `/reservations/${x.id}` : '/reservations'}">Cancel</a></div>
     </form>`;
@@ -331,7 +331,7 @@ module.exports = (r, { db }) => {
           <tr><td><b>Total</b></td><td class="num"><b>${money(t.total)}</b></td></tr><tr><td>Paid</td><td class="num">${money(t.paid)}</td></tr>
           <tr><td><b>${t.balance < 0 ? 'Credit' : 'Balance'}</b></td><td class="num"><b>${money(Math.abs(t.balance))}</b></td></tr>
           ${t.depositOwed ? html`<tr><td>Deposit due${x.deposit_due ? ` by ${dateFmt(x.deposit_due)}` : ''}</td><td class="num">${money(t.depositOwed)}</td></tr>` : ''}</tbody></table>
-        ${s.confirm_note ? html`<p class="pre c-note">${s.confirm_note}</p>` : ''}
+        ${(loc && loc.confirm_note) || s.confirm_note ? html`<p class="pre c-note">${(loc && loc.confirm_note) || s.confirm_note}</p>` : ''}
       </article>` }));
   });
 };

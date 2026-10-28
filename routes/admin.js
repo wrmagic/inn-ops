@@ -38,22 +38,26 @@ module.exports = (r, { db }) => {
     ctx.setFlash('Business details saved.');
     ctx.redirect('/admin/business');
   }, A);
+  // Stay defaults, set for each location: check-in and checkout times, lodging tax, and the confirmation note
+  const taxOf = (v, name) => { const t = String(v ?? '').replace(/[%\s]/g, ''); if (t === '') return 0; const n = Number(t); if (!Number.isFinite(n) || n < 0 || n > 50) throw new HttpError(422, `Enter ${name}’s lodging tax as a percent, like 10.`); return n; };
   r.get('/admin/stays', (ctx) => {
-    const s = ctx.settings;
-    page(ctx, 'Stay defaults', html`<form method="post" action="/admin/stays" class="panel stack form-wide" data-dirty-guard>${csrfField(ctx)}
-      <div class="grid g4">
-        ${field('Usual check-in time', input('check_in_time', s.check_in_time, { type: 'time' }), { hint: 'A location or room can have its own.' })}
-        ${field('Usual checkout time', input('check_out_time', s.check_out_time, { type: 'time' }))}
-        ${field('Lodging tax %', input('tax_percent', s.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay (e.g. 10 for 10%).' })}
-      </div>
-      ${field('Note printed on every confirmation', textarea('confirm_note', s.confirm_note, { rows: 3, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}
+    const locs = db.all('SELECT * FROM locations ORDER BY sort, name');
+    page(ctx, 'Stay defaults', html`<form method="post" action="/admin/stays" class="stack form-wide" data-dirty-guard>${csrfField(ctx)}
+      <p class="hint">Each location’s usual check-in and checkout times (a room can still have its own), its lodging tax, and the note printed on its confirmations.</p>
+      ${locs.length ? locs.map((l) => html`<section class="panel stay-loc"><h2><span class="dot" style="background:${R.locColor(l)}"></span>${l.name}${l.active ? '' : html` ${badge('Not in use', 'soft')}`}</h2>
+        <input type="hidden" name="loc_id[]" value="${l.id}">
+        <div class="grid g4">
+          ${field('Check-in time', input('loc_in[]', l.check_in_time, { type: 'time' }))}
+          ${field('Checkout time', input('loc_out[]', l.check_out_time, { type: 'time' }))}
+          ${field('Lodging tax %', input('loc_tax[]', l.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay here (e.g. 10 for 10%).' })}
+        </div>
+        ${field('Note printed on its confirmations', textarea('loc_note[]', l.confirm_note, { rows: 2, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}</section>`) : empty('No locations yet.')}
       <div class="form-actions"><button class="btn primary">Save</button></div></form>`, '/admin/stays');
   }, A);
   r.post('/admin/stays', (ctx) => {
-    const b = ctx.body;
-    const tax = Number(String(b.tax_percent || '0').replace(/[%\s]/g, ''));
-    if (!Number.isFinite(tax) || tax < 0 || tax > 50) throw new HttpError(422, 'Enter the lodging tax as a percent, like 10.');
-    db.update('settings', 1, { check_in_time: time(b.check_in_time) || '15:00', check_out_time: time(b.check_out_time) || '11:00', tax_percent: tax, confirm_note: str(b.confirm_note, 3000) });
+    const b = ctx.body; const ids = arr(b.loc_id); const col = (k, i) => arr(b[k])[i];
+    const rows = ids.map((v, i) => { const l = int(v) && db.get('SELECT * FROM locations WHERE id=?', int(v)); return l && { l, rec: { check_in_time: time(col('loc_in', i)), check_out_time: time(col('loc_out', i)), tax_percent: taxOf(col('loc_tax', i), l.name), confirm_note: str(col('loc_note', i), 3000) } }; }).filter(Boolean);
+    db.tx(() => rows.forEach(({ l, rec }) => db.update('locations', l.id, rec)));
     ctx.setFlash('Stay defaults saved.');
     ctx.redirect('/admin/stays');
   }, A);
@@ -84,7 +88,8 @@ module.exports = (r, { db }) => {
 
   r.post('/admin/locations/new', (ctx) => {
     const name = str(ctx.body.name, 80); if (!name) throw new HttpError(422, 'Name the location.');
-    const id = db.insert('locations', { name, sort: (db.get('SELECT MAX(sort) m FROM locations').m || 0) + 1 });
+    const st = ctx.settings;
+    const id = db.insert('locations', { name, sort: (db.get('SELECT MAX(sort) m FROM locations').m || 0) + 1, check_in_time: st.check_in_time || '15:00', check_out_time: st.check_out_time || '11:00', tax_percent: Number(st.tax_percent) || 0 });
     ctx.setFlash(`${name} added. Now add its rooms.`);
     ctx.redirect(`/admin/locations/${id}`);
   }, A);
@@ -129,6 +134,8 @@ module.exports = (r, { db }) => {
           ${field('Pre-check-in list', select('precheck_list_id', CL.listsOf(db, 'precheck').map((c) => [c.id, c.name]), l.precheck_list_id, { blank: 'None' }), { hint: 'Every room here uses it unless the room picks its own.' })}
           ${field('Checkout list', select('checkout_list_id', CL.listsOf(db, 'checkout').map((c) => [c.id, c.name]), l.checkout_list_id, { blank: 'None' }), { hint: html`Make lists under <a href="/admin/checklists">Admin › Checklists</a>.` })}
         </div>
+        <div class="grid g4">${field('Lodging tax %', input('tax_percent', l.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay here.' })}</div>
+        ${field('Note printed on its confirmations', textarea('confirm_note', l.confirm_note, { rows: 2, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}
         ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }))}
         ${field('Staff notes', textarea('notes', l.notes, { rows: 2 }))}
       </section>
@@ -147,7 +154,7 @@ module.exports = (r, { db }) => {
     db.tx(() => {
       db.update('locations', l.id, { name, color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : null, active: b.active === '0' ? 0 : 1, address1: str(b.address1, 200), city: str(b.city, 100),
         state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), phone: phone(b.phone), check_in_time: time(b.check_in_time), check_out_time: time(b.check_out_time),
-        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), precheck_list_id: listId(b.precheck_list_id, 'precheck'), checkout_list_id: listId(b.checkout_list_id, 'checkout'), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
+        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), precheck_list_id: listId(b.precheck_list_id, 'precheck'), checkout_list_id: listId(b.checkout_list_id, 'checkout'), tax_percent: taxOf(b.tax_percent, name), confirm_note: str(b.confirm_note, 3000), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
       const kept = new Set();
       names.forEach((n, i) => {
         const rn = str(n, 80); if (!rn) return;

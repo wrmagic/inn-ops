@@ -158,10 +158,18 @@ test('a buy-out is refused while rooms are booked, and blocks rooms once booked'
 });
 
 test('payments, refunds and lodging tax', async () => {
-  await post('/admin/stays', { check_in_time: '15:00', check_out_time: '11:00', tax_percent: '10' });
+  // Stay defaults are set for each location: 10% lodging tax at the test cottage only
+  const others = db.all('SELECT id FROM locations WHERE id<>? ORDER BY id', locId);
+  const row = (id, tax, note) => [['loc_id[]', String(id)], ['loc_in[]', '16:00'], ['loc_out[]', '10:00'], ['loc_tax[]', tax], ['loc_note[]', note]];
+  assert.equal((await post('/admin/stays', [...row(locId, 'abc', '')])).status, 422);
+  let r = await post('/admin/stays', [...row(locId, '10', 'Cottage Wi-Fi: magic123'), ...others.flatMap((o) => row(o.id, '', ''))]);
+  assert.equal(r.status, 303);
+  assert.equal(db.get('SELECT tax_percent FROM locations WHERE id=?', locId).tax_percent, 10);
+  assert.equal(db.get('SELECT tax_percent FROM locations WHERE id=?', others[0].id).tax_percent, 0);
+  const stays = (await get('/admin/stays')).text;
+  assert.match(stays, /Test Cottage/); assert.match(stays, /Cottage Wi-Fi: magic123/);
   await post('/admin/business', { name: 'Test Inns', timezone: 'America/Los_Angeles' });
   assert.equal(db.settings().name, 'Test Inns');
-  assert.equal(Number(db.settings().tax_percent), 10);
   await post(`/reservations/${resId}/payments`, { amount: '300', method: 'card', received_on: '2027-02-01' });
   await post(`/reservations/${resId}/payments`, { amount: '50', method: 'cash', refund: '1' });
   const R = require('../lib/res');
@@ -215,6 +223,7 @@ test('calendar, date book, lists, reports and confirmation pages open', async ()
   assert.match(dbk.text, /Pat/);
   const conf = await get(`/reservations/${resId}/confirmation`);
   assert.match(conf.text, /Use the side gate/);
+  assert.match(conf.text, /Cottage Wi-Fi: magic123/, 'the location’s own confirmation note');
   assert.doesNotMatch(conf.text, /Returning guest/, 'staff comments stay off the guest confirmation');
   const cal = await get('/calendar?date=2027-03-01');
   assert.match(cal.text, /Pat/);
