@@ -531,7 +531,15 @@ test('emergency contacts and check-in details for the guest (text, email, privat
   const SI = require('../lib/stayinfo');
   const x = db.get('SELECT * FROM reservations WHERE id=?', id);
   const m = SI.message(db, x, db.settings(), 'https://inn.example');
-  for (const t of ['Downstairs (Pat & Sam)', 'Key is in the blue lockbox', 'Ground floor please', 'Use the side gate', 'Sam Night (After hours): (805) 555-0199', 'Check-in: Wednesday, October 1, 2031', 'Checkout: Friday, October 3, 2031']) assert.ok(m.text.includes(t), t);
+  for (const t of ['Downstairs · Pat & Sam', 'Key is in the blue lockbox', 'Special needs: Ground floor please', 'Use the side gate', 'Emergency contact: Sam Night · After hours · (805) 555-0199', 'Check-in: Wednesday, October 1, 2031', 'Checkout: Friday, October 3, 2031']) assert.ok(m.text.includes(t), t);
+  // the text message: one thing per line
+  const smsLines = m.sms.split('\n');
+  assert.ok(smsLines.includes('Test Cottage')); assert.ok(smsLines.some((l) => l.startsWith('Check-in: '))); assert.ok(smsLines.some((l) => l.startsWith('Checkout: ')));
+  assert.ok(smsLines.some((l) => l.startsWith('Room: Downstairs'))); assert.ok(smsLines.some((l) => l.startsWith('Special needs: ')));
+  assert.ok(smsLines.some((l) => l.startsWith('Emergency contact: Sam Night'))); assert.match(smsLines[smsLines.length - 1], /^Details: https/);
+  // the email: laid out like the guest's page
+  const em = SI.emailHtml(m.facts, m.url);
+  assert.match(em, />Check-in<\/td>/); assert.match(em, />Emergency contact<\/td>/); assert.match(em, /View or print these details/); assert.doesNotMatch(em, /\$\d/);
   assert.doesNotMatch(m.text + m.sms, /\$\d/, 'no prices');
   assert.doesNotMatch(m.text, /Returning guest/, 'staff comments stay private');
   assert.match(m.sms, /Details: https:\/\/inn\.example\/stay\//);
