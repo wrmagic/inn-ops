@@ -323,6 +323,70 @@ test('reservation and guest lists come in pages (20, 50, 100 or All, remembered)
   assert.doesNotMatch(r.text, /Next ›/);
 });
 
+test('checklists: location lists, a room’s own list, ticks with who and when, who checked in and out', async () => {
+  // Admin › Checklists
+  let r = await post('/admin/checklists/new', { name: 'Cottage turnover', kind: 'precheck' });
+  const pre = Number(r.location.split('/').pop());
+  r = await post(`/admin/checklists/${pre}`, [['name', 'Cottage turnover'], ['active', '1'], ['item_id[]', ''], ['item_text[]', 'Fresh towels'], ['item_id[]', ''], ['item_text[]', 'Heat on'], ['item_id[]', ''], ['item_text[]', '']]);
+  assert.equal(r.status, 303);
+  assert.deepEqual(db.all('SELECT text FROM checklist_items WHERE checklist_id=? ORDER BY sort', pre).map((x) => x.text), ['Fresh towels', 'Heat on']);
+  r = await post('/admin/checklists/new', { name: 'Suite extras', kind: 'precheck' });
+  const special = Number(r.location.split('/').pop());
+  await post(`/admin/checklists/${special}`, [['name', 'Suite extras'], ['item_id[]', ''], ['item_text[]', 'Champagne on ice']]);
+  r = await post('/admin/checklists/new', { name: 'Cottage checkout', kind: 'checkout' });
+  const co = Number(r.location.split('/').pop());
+  await post(`/admin/checklists/${co}`, [['name', 'Cottage checkout'], ['item_id[]', ''], ['item_text[]', 'Keys returned'], ['item_id[]', ''], ['item_text[]', 'Damage check']]);
+  // The location uses Cottage turnover + Cottage checkout; Upstairs picks its own pre-check-in list
+  const room = (id, name, rate, plist) => [['room_id[]', String(id)], ['room_name[]', name], ['room_rate[]', rate], ['room_wrate[]', ''], ['room_max[]', '2'], ['room_active[]', '1'],
+    ['room_desc[]', ''], ['room_in[]', ''], ['room_out[]', ''], ['room_plist[]', plist], ['room_clist[]', ''], ['room_instr[]', ''], ['room_notes[]', '']];
+  r = await post(`/admin/locations/${locId}`, [['name', 'Test Cottage'], ['buyout_rate', '500'], ['precheck_list_id', String(pre)], ['checkout_list_id', String(co)],
+    ...room(roomA, 'Upstairs', '100', String(special)), ...room(roomB, 'Downstairs', '80.50', '')]);
+  assert.equal(r.status, 303);
+  assert.equal(db.get('SELECT precheck_list_id FROM rooms WHERE id=?', roomA).precheck_list_id, special);
+  assert.equal(db.get('SELECT precheck_list_id FROM rooms WHERE id=?', roomB).precheck_list_id, null);
+  assert.match((await get('/admin/checklists')).text, /Test Cottage: Upstairs/);
+  // A stay in both rooms
+  r = await post('/reservations/new', booking([['room_ids[]', String(roomA)], ['room_ids[]', String(roomB)]]).map(([k, v]) => (k === 'arrive' ? [k, '2031-02-03'] : k === 'depart' ? [k, '2031-02-05'] : [k, v])));
+  const id = Number(r.location.split('/').pop());
+  let page = (await get(`/reservations/${id}`)).text;
+  assert.match(page, /Pre-check-in/); assert.match(page, /0 of 3/);
+  assert.match(page, /Champagne on ice/, 'Upstairs uses its own list');
+  assert.match(page, /Heat on/, 'Downstairs follows the location');
+  assert.doesNotMatch(page, /Keys returned/, 'checkout list waits for check-in');
+  const champ = db.get("SELECT id FROM checklist_items WHERE text='Champagne on ice'").id;
+  const towels = db.get("SELECT id FROM checklist_items WHERE text='Fresh towels'").id;
+  r = await post(`/reservations/${id}/checks`, [['kind', 'precheck'], ['c[]', `${roomA}:${champ}`], ['c[]', `${roomB}:${towels}`]]);
+  assert.equal(r.status, 303);
+  const ticks = db.all('SELECT * FROM reservation_checks WHERE reservation_id=?', id);
+  assert.equal(ticks.length, 2);
+  assert.ok(ticks.every((t) => t.done_by && t.done_at));
+  page = (await get(`/reservations/${id}`)).text;
+  assert.match(page, /2 of 3/); assert.match(page, /cl-who">Administrator/);
+  assert.match(page, /1 of the 3 pre-check-in items aren’t ticked yet/, 'Check in asks first when items are left');
+  // untick one
+  await post(`/reservations/${id}/checks`, [['kind', 'precheck'], ['c[]', `${roomA}:${champ}`]]);
+  assert.equal(db.get('SELECT COUNT(*) n FROM reservation_checks WHERE reservation_id=?', id).n, 1);
+  // check in: who did it, and the checkout list appears
+  await post(`/reservations/${id}/status`, { to: 'checked_in' });
+  const admin = db.get("SELECT id FROM users WHERE username='admin'").id;
+  assert.equal(db.get('SELECT checked_in_by FROM reservations WHERE id=?', id).checked_in_by, admin);
+  page = (await get(`/reservations/${id}`)).text;
+  assert.match(page, /checked in [^<]* by Administrator/);
+  assert.match(page, /Keys returned/); assert.match(page, /0 of 4/);
+  // phone: same lists
+  const m = (await get(`/m/r/${id}`)).text;
+  assert.match(m, /Keys returned/);
+  const keys = db.get("SELECT id FROM checklist_items WHERE text='Keys returned'").id;
+  r = await post(`/reservations/${id}/checks`, [['kind', 'checkout'], ['c[]', `${roomA}:${keys}`], ['next', `/m/r/${id}#checkout`]]);
+  assert.equal(r.location, `/m/r/${id}#checkout`);
+  await post(`/reservations/${id}/status`, { to: 'checked_out' });
+  assert.equal(db.get('SELECT checked_out_by FROM reservations WHERE id=?', id).checked_out_by, admin);
+  // deleting a list keeps the ticks already made
+  await post(`/admin/checklists/${special}/delete`, {});
+  assert.equal(db.get('SELECT precheck_list_id FROM rooms WHERE id=?', roomA).precheck_list_id, null);
+  assert.match((await get(`/reservations/${id}`)).text, /Champagne on ice/);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

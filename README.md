@@ -21,6 +21,12 @@ completely on its own: its own website, its own database and its own logins.
   - status: Tentative, Confirmed, Checked in, Checked out, Cancelled
   - money: each night at its weekday or weekend rate (rooms or buy-out), discount, lodging tax, deposit and due date,
     payments and refunds, balance
+- **Checklists** (Admin › Checklists): make **Pre-check-in** lists (things to check and confirm before a guest
+  arrives) and **Checkout** lists (what's done when they leave). Pick each location's lists on its page under
+  Locations and rooms; every room there uses them unless the room picks its own list. On a reservation, each room
+  gets its list as tick boxes (the checkout list appears once the guest is checked in); each tick shows who did it
+  and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the
+  guest in and out. The same lists are on the phone version.
 - **No double bookings**: a room can't be booked twice for the same night, and a buy-out can't overlap any booking
   at that location. A guest can arrive the same day the last one leaves.
 - **Calendar** (Calendar): a month view and a list, with every stay on each night it covers. Click + on a day to book.

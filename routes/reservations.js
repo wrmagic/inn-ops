@@ -6,6 +6,7 @@ const { layout, bare, csrfField, field, input, textarea, select, guestPicker, pa
 const { str, int, arr, own, now, isDate, isTime, addDays, todayIn } = require('../lib/common');
 const { HttpError } = require('../lib/http');
 const R = require('../lib/res');
+const CL = require('../lib/checklists');
 const { paging } = require('../lib/paging');
 
 const METHODS = [['cash', 'Cash'], ['check', 'Check'], ['card', 'Card'], ['zelle', 'Zelle'], ['venmo', 'Venmo'], ['paypal', 'PayPal'], ['other', 'Other']];
@@ -172,6 +173,18 @@ module.exports = (r, { db }) => {
     ctx.redirect(`/reservations/${x.id}`);
   });
 
+  // ---------- Checklist panel (pre-check-in or checkout): tick boxes per room, each showing who ticked it and when
+  function checkPanel(ctx, x, kind, units, p) {
+    if (!units.length) return '';
+    const tz = ctx.settings.timezone;
+    return html`<section class="panel checklist" id="${kind}"><h2>${CL.KINDS[kind].label} <span class="cl-count ${p.done === p.total ? 'all' : ''}">${p.done} of ${p.total}</span></h2>
+      <form method="post" action="/reservations/${x.id}/checks" class="stack">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}">
+        ${units.map((u) => html`<div class="cl-unit">${units.length > 1 || u.room_id ? html`<h3>${u.room}${u.list ? html` <small class="muted">· ${u.list.name}</small>` : ''}</h3>` : ''}
+          <ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}${it.old ? html` <small class="muted">(no longer on the list)</small>` : ''}</span></label>
+            ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, tz)}</small>` : ''}</li>`)}</ul></div>`)}
+        <div><button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></div></form></section>`;
+  }
+
   // ---------- One reservation
   r.get('/reservations/:id', (ctx) => {
     const x = own(db, 'reservations', ctx.params.id); const s = ctx.settings; const today = todayIn(s.timezone);
@@ -179,10 +192,13 @@ module.exports = (r, { db }) => {
     const ev = x.event_id && db.get('SELECT * FROM events WHERE id=?', x.event_id);
     const rooms = R.roomsOf(db, x.id); const t = R.totals(db, x, s);
     const pays = db.all('SELECT p.*, u.name uname FROM payments p LEFT JOIN users u ON u.id=p.user_id WHERE reservation_id=? ORDER BY received_on, id', x.id);
+    const pre = CL.forReservation(db, x, 'precheck'); const out = CL.forReservation(db, x, 'checkout');
+    const preP = CL.progress(pre); const outP = CL.progress(out);
+    const notAll = (p, what) => (p.total && p.done < p.total ? `${p.total - p.done} of the ${p.total} ${what} items aren’t ticked yet. Go ahead anyway?` : '');
     const st = R.STATUS[x.status]; const by = (id) => (id ? (db.get('SELECT name FROM users WHERE id=?', id) || {}).name : '');
     const action = (to, label, cls = '', confirm = '') => html`<form method="post" action="/reservations/${x.id}/status" class="inline"${confirm ? raw(` data-confirm="${confirm}"`) : ''}>${csrfField(ctx)}<input type="hidden" name="to" value="${to}"><button class="btn ${cls}">${label}</button></form>`;
     const actions = html`<a class="btn ghost" href="/reservations">Back to list</a><a class="btn ghost" href="/reservations/${x.id}/confirmation" target="_blank" rel="noopener">${icon('print')} Confirmation</a><a class="btn" href="/reservations/${x.id}/edit">Edit</a>
-      ${['tentative', 'confirmed'].includes(x.status) ? action('checked_in', 'Check in', 'primary') : ''}${x.status === 'checked_in' ? action('checked_out', 'Check out', 'primary') : ''}`;
+      ${['tentative', 'confirmed'].includes(x.status) ? action('checked_in', 'Check in', 'primary', notAll(preP, 'pre-check-in')) : ''}${x.status === 'checked_in' ? action('checked_out', 'Check out', 'primary', notAll(outP, 'checkout')) : ''}`;
     ctx.html(layout(ctx, { title: `Reservation #${x.id}`, active: '/reservations', body: html`${pageHead(html`${R.guestName(g)} <small class="muted">#${x.id}</small>`, actions,
       html`${badge(st.label, st.badge)} ${dateFmt(x.arrive, 'long')} – ${dateFmt(x.depart, 'long')} · ${R.nightsLabel(t.nights)} · ${R.whereLine(db, x)}`)}
       ${x.status !== 'cancelled' && x.arrive <= today && x.depart > today && x.status !== 'checked_in' ? html`<div class="alert warn">This stay has started but the guest isn’t checked in yet.</div>` : ''}
@@ -190,8 +206,8 @@ module.exports = (r, { db }) => {
         <div class="stack">
           <section class="panel"><h2>The stay</h2><dl class="dl">
             <dt>Guest</dt><dd>${g ? html`<a href="/guests/${g.id}">${personName(g, 'first')}</a>${g.phone ? html` · <a href="tel:${g.phone}">${g.phone}</a>` : ''}${g.email ? html` · <a href="mailto:${g.email}">${g.email}</a>` : ''}` : '—'}</dd>
-            <dt>Check-in</dt><dd>${dateFmt(x.arrive, 'long')}${x.check_in_time ? `, ${time12(x.check_in_time)}` : ''}${x.checked_in_at ? html` <small class="muted">· checked in ${dateTimeFmt(x.checked_in_at, s.timezone)}</small>` : ''}</dd>
-            <dt>Checkout</dt><dd>${dateFmt(x.depart, 'long')}${x.check_out_time ? `, ${time12(x.check_out_time)}` : ''}${x.checked_out_at ? html` <small class="muted">· checked out ${dateTimeFmt(x.checked_out_at, s.timezone)}</small>` : ''}</dd>
+            <dt>Check-in</dt><dd>${dateFmt(x.arrive, 'long')}${x.check_in_time ? `, ${time12(x.check_in_time)}` : ''}${x.checked_in_at ? html` <small class="muted">· checked in ${dateTimeFmt(x.checked_in_at, s.timezone)}${by(x.checked_in_by) ? ` by ${by(x.checked_in_by)}` : ''}</small>` : ''}</dd>
+            <dt>Checkout</dt><dd>${dateFmt(x.depart, 'long')}${x.check_out_time ? `, ${time12(x.check_out_time)}` : ''}${x.checked_out_at ? html` <small class="muted">· checked out ${dateTimeFmt(x.checked_out_at, s.timezone)}${by(x.checked_out_by) ? ` by ${by(x.checked_out_by)}` : ''}</small>` : ''}</dd>
             <dt>Location</dt><dd>${loc ? loc.name : ''}${x.kind === 'buyout' ? html` ${badge('Full buy-out')}` : ''}</dd>
             ${x.adults || x.children ? html`<dt>Guests</dt><dd>${[x.adults ? `${x.adults} adult${x.adults === 1 ? '' : 's'}` : null, x.children ? `${x.children} child${x.children === 1 ? '' : 'ren'}` : null].filter(Boolean).join(', ')}</dd>` : ''}
             ${ev ? html`<dt>Event</dt><dd><a href="/events/${ev.id}">${ev.name}</a></dd>` : ''}
@@ -201,6 +217,7 @@ module.exports = (r, { db }) => {
               <td class="num">${x.kind === 'buyout' ? '' : html`${money(ro.res_rate)}<small class="muted">/night</small>${ro.res_weekend !== ro.res_rate ? html`<small class="contact-line">${money(ro.res_weekend)} Fri, Sat</small>` : ''}`}</td></tr>
               ${ro.instructions ? html`<tr class="sub-note"><td colspan="3"><small>${ro.instructions}</small></td></tr>` : ''}`)}</tbody></table>` : html`<p class="muted">${x.kind === 'buyout' ? 'The whole location (it has no separate rooms).' : 'No rooms.'}</p>`}
             ${loc && loc.instructions ? html`<p class="hint"><b>${loc.name}:</b> ${loc.instructions}</p>` : ''}</section>
+          ${x.status !== 'cancelled' ? html`${checkPanel(ctx, x, 'precheck', pre, preP)}${['checked_in', 'checked_out'].includes(x.status) || x.depart <= today ? checkPanel(ctx, x, 'checkout', out, outP) : ''}` : ''}
           ${x.special_needs || x.special_instructions || x.comments ? html`<section class="panel"><h2>Needs and notes</h2><dl class="dl">
             ${x.special_needs ? html`<dt>Special needs</dt><dd class="pre">${x.special_needs}</dd>` : ''}
             ${x.special_instructions ? html`<dt>Special instructions</dt><dd class="pre">${x.special_instructions}</dd>` : ''}
@@ -241,14 +258,23 @@ module.exports = (r, { db }) => {
       if (clash.length) throw new HttpError(409, `It can’t come back: ${clash.map((c) => `${c.room} is now booked by ${c.guest} (#${c.id})`).join('; ')}.`);
     }
     const rec = { status: to, updated_at: now() };
-    if (to === 'checked_in') rec.checked_in_at = x.checked_in_at && x.status === 'checked_out' ? x.checked_in_at : now();
-    if (to === 'checked_out') rec.checked_out_at = now();
+    if (to === 'checked_in') { rec.checked_in_at = x.checked_in_at && x.status === 'checked_out' ? x.checked_in_at : now(); if (x.status !== 'checked_out') rec.checked_in_by = ctx.user.id; }
+    if (to === 'checked_out') { rec.checked_out_at = now(); rec.checked_out_by = ctx.user.id; }
     if (to === 'cancelled') rec.cancelled_at = now();
-    if (to === 'confirmed') { rec.checked_in_at = null; rec.checked_out_at = null; rec.cancelled_at = null; }
-    if (to === 'checked_in' && x.status === 'checked_out') rec.checked_out_at = null;
+    if (to === 'confirmed') { rec.checked_in_at = null; rec.checked_out_at = null; rec.cancelled_at = null; rec.checked_in_by = null; rec.checked_out_by = null; }
+    if (to === 'checked_in' && x.status === 'checked_out') { rec.checked_out_at = null; rec.checked_out_by = null; }
     db.update('reservations', x.id, rec);
     ctx.setFlash({ checked_in: 'Checked in.', checked_out: 'Checked out.', cancelled: 'Reservation cancelled.', confirmed: 'Reservation confirmed.', tentative: 'Marked tentative.' }[to]);
     ctx.redirect(ctx.back(`/reservations/${x.id}`));
+  });
+
+  r.post('/reservations/:id/checks', (ctx) => {
+    const x = own(db, 'reservations', ctx.params.id); const kind = CL.KINDS[ctx.body.kind] ? ctx.body.kind : null;
+    if (!kind) throw new HttpError(422, 'Which checklist?');
+    CL.save(db, x, kind, arr(ctx.body.c), ctx.user.id, now());
+    const p = CL.progress(CL.forReservation(db, x, kind));
+    ctx.setFlash(`${CL.KINDS[kind].label} list saved: ${p.done} of ${p.total} done.`);
+    ctx.redirect(ctx.back(`/reservations/${x.id}#${kind}`));
   });
 
   r.post('/reservations/:id/payments', (ctx) => {

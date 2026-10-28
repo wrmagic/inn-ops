@@ -1,11 +1,12 @@
 'use strict';
 // Phone version (/m): today's arrivals, departures and who's staying; find a reservation; open one to see its rooms,
 // needs, instructions and comments, check guests in and out, and add a comment. Installs on the home screen.
-const { html, money, dateFmt, dateTimeFmt, time12 } = require('../lib/html');
+const { html, raw, money, dateFmt, dateTimeFmt, time12 } = require('../lib/html');
 const { csrfField, icon, CSS, JS, badge } = require('../lib/views');
 const { HttpError } = require('../lib/http');
 const { str, isDate, addDays, todayIn, own, now } = require('../lib/common');
 const R = require('../lib/res');
+const CL = require('../lib/checklists');
 
 const CSS2 = CSS.replace('/app.css', '/inn.css');
 const TABS = [['/m', 'Today', 'home'], ['/m/upcoming', 'Coming up', 'cal'], ['/m/find', 'Find', 'search'], ['/', 'Full site', 'screen']];
@@ -44,7 +45,7 @@ module.exports = (r, { db }) => {
   const live = (where, ...args) => db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND ${where} ORDER BY r.arrive, r.check_in_time, r.id`, ...args);
 
   // One small status button (posts to the same place as the full site)
-  const btn = (ctx, x, to, label, next, cls = 'primary') => html`<form method="post" action="/reservations/${x.id}/status" class="inline">${csrfField(ctx)}
+  const btn = (ctx, x, to, label, next, cls = 'primary', confirm = '') => html`<form method="post" action="/reservations/${x.id}/status" class="inline"${confirm ? raw(` data-confirm="${confirm}"`) : ''}>${csrfField(ctx)}
     <input type="hidden" name="to" value="${to}"><input type="hidden" name="next" value="${next}"><button class="btn ${cls}">${label}</button></form>`;
   // The main action for a stay on a given day
   const action = (ctx, x, day, next) => {
@@ -53,7 +54,8 @@ module.exports = (r, { db }) => {
     if (x.status === 'checked_in') return badge('In house', 'ok');
     return badge(R.STATUS[x.status].label, R.STATUS[x.status].badge);
   };
-  const flags = (x, t) => html`${x.special_needs ? html`<span class="m-flag need">Needs</span>` : ''}${x.comments ? html`<span class="m-flag note">Comments</span>` : ''}${t && t.balance > 0 ? html`<span class="m-flag due">${money(t.balance)} due</span>` : ''}`;
+  const clFlag = (x) => { const k = ['tentative', 'confirmed'].includes(x.status) ? 'precheck' : x.status === 'checked_in' ? 'checkout' : null; if (!k) return ''; const p = CL.progress(CL.forReservation(db, x, k)); return p.total ? html`<span class="m-flag ${p.done === p.total ? 'ok' : 'cl'}">${k === 'precheck' ? 'Pre-check' : 'Checkout'} ${p.done}/${p.total}</span>` : ''; };
+  const flags = (x, t) => html`${clFlag(x)}${x.special_needs ? html`<span class="m-flag need">Needs</span>` : ''}${x.comments ? html`<span class="m-flag note">Comments</span>` : ''}${t && t.balance > 0 ? html`<span class="m-flag due">${money(t.balance)} due</span>` : ''}`;
   const card = (ctx, x, day, next, when) => {
     const t = R.totals(db, x, ctx.settings);
     return html`<li class="m-res st-${x.status}" style="--c:${R.locColor(db.get('SELECT * FROM locations WHERE id=?', x.location_id))}">
@@ -112,8 +114,16 @@ module.exports = (r, { db }) => {
     const ev = x.event_id && db.get('SELECT * FROM events WHERE id=?', x.event_id); const t = R.totals(db, x, s);
     const back = isDate(ctx.query.d) ? `/m?d=${ctx.query.d}` : '/m';
     const here = `/m/r/${x.id}`;
-    const main = ['tentative', 'confirmed'].includes(x.status) ? btn(ctx, x, 'checked_in', x.arrive > today ? `Check in early (due ${dateFmt(x.arrive, 'dow')})` : 'Check in', here, 'primary big')
-      : x.status === 'checked_in' ? btn(ctx, x, 'checked_out', x.depart > today ? `Check out early (due ${dateFmt(x.depart, 'dow')})` : 'Check out', here, 'primary big') : '';
+    const pre = CL.forReservation(db, x, 'precheck'); const out = CL.forReservation(db, x, 'checkout'); const preP = CL.progress(pre); const outP = CL.progress(out);
+    const notAll = (p, what) => (p.total && p.done < p.total ? `${p.total - p.done} of the ${p.total} ${what} items aren’t ticked yet. Go ahead anyway?` : '');
+    const main = ['tentative', 'confirmed'].includes(x.status) ? btn(ctx, x, 'checked_in', x.arrive > today ? `Check in early (due ${dateFmt(x.arrive, 'dow')})` : 'Check in', here, 'primary big', notAll(preP, 'pre-check-in'))
+      : x.status === 'checked_in' ? btn(ctx, x, 'checked_out', x.depart > today ? `Check out early (due ${dateFmt(x.depart, 'dow')})` : 'Check out', here, 'primary big', notAll(outP, 'checkout')) : '';
+    const by = (id) => (id ? (db.get('SELECT name FROM users WHERE id=?', id) || {}).name : '');
+    const clCard = (kind, units, p) => (units.length ? html`<section class="m-card m-cl checklist" id="${kind}"><h2 class="m-sub">${CL.KINDS[kind].label} <span class="cl-count ${p.done === p.total ? 'all' : ''}">${p.done} of ${p.total}</span></h2>
+      <form method="post" action="/reservations/${x.id}/checks">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here}#${kind}">
+        ${units.map((u) => html`${units.length > 1 || u.room_id ? html`<h3 class="m-clroom">${u.room}</h3>` : ''}<ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}</span></label>
+          ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, s.timezone)}</small>` : ''}</li>`)}</ul>`)}
+        <button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></form></section>` : '');
     const undo = x.status === 'checked_in' ? btn(ctx, x, 'confirmed', 'Undo check-in', here, 'ghost small') : x.status === 'checked_out' ? btn(ctx, x, 'checked_in', 'Undo checkout', here, 'ghost small') : '';
     const block = (label, text, cls = '') => (text ? html`<section class="m-card m-note ${cls}"><h2 class="m-sub">${label}</h2><p class="pre">${text}</p></section>` : '');
     ctx.html(phone(ctx, { title: `#${x.id}`, back, body: html`
@@ -122,14 +132,15 @@ module.exports = (r, { db }) => {
         <p class="m-where">${R.whereLine(db, x)}</p>
         ${g && (g.phone || g.email) ? html`<p class="m-contact">${g.phone ? html`<a class="m-pill" href="tel:${g.phone}">Call ${g.phone}</a> <a class="m-pill" href="sms:${g.phone}">Text</a>` : ''}${g.email ? html` <a class="m-pill" href="mailto:${g.email}">Email</a>` : ''}</p>` : ''}
         <dl class="m-dl">
-          <dt>Check-in</dt><dd>${dateFmt(x.arrive, 'dow')}${x.check_in_time ? `, ${time12(x.check_in_time)}` : ''}${x.checked_in_at ? html`<small>in ${dateTimeFmt(x.checked_in_at, s.timezone)}</small>` : ''}</dd>
-          <dt>Checkout</dt><dd>${dateFmt(x.depart, 'dow')}${x.check_out_time ? `, ${time12(x.check_out_time)}` : ''}${x.checked_out_at ? html`<small>out ${dateTimeFmt(x.checked_out_at, s.timezone)}</small>` : ''}</dd>
+          <dt>Check-in</dt><dd>${dateFmt(x.arrive, 'dow')}${x.check_in_time ? `, ${time12(x.check_in_time)}` : ''}${x.checked_in_at ? html`<small>in ${dateTimeFmt(x.checked_in_at, s.timezone)}${by(x.checked_in_by) ? ` by ${by(x.checked_in_by)}` : ''}</small>` : ''}</dd>
+          <dt>Checkout</dt><dd>${dateFmt(x.depart, 'dow')}${x.check_out_time ? `, ${time12(x.check_out_time)}` : ''}${x.checked_out_at ? html`<small>out ${dateTimeFmt(x.checked_out_at, s.timezone)}${by(x.checked_out_by) ? ` by ${by(x.checked_out_by)}` : ''}</small>` : ''}</dd>
           <dt>Stay</dt><dd>${R.nightsLabel(t.nights)}${x.adults || x.children ? ` · ${[x.adults ? `${x.adults} adult${x.adults === 1 ? '' : 's'}` : '', x.children ? `${x.children} child${x.children === 1 ? '' : 'ren'}` : ''].filter(Boolean).join(', ')}` : ''}</dd>
           ${ev ? html`<dt>Event</dt><dd>${ev.name}</dd>` : ''}
         </dl>
         ${main || undo ? html`<div class="m-actions">${main}${undo}</div>` : ''}
       </section>
       ${block('Special needs', x.special_needs, 'need')}
+      ${x.status === 'cancelled' ? '' : html`${['tentative', 'confirmed'].includes(x.status) ? clCard('precheck', pre, preP) : ''}${['checked_in', 'checked_out'].includes(x.status) || x.depart <= today ? clCard('checkout', out, outP) : ''}`}
       ${block('Comments', x.comments, 'note')}
       ${block('Special instructions for the guest', x.special_instructions)}
       <section class="m-card"><h2 class="m-sub">${x.kind === 'buyout' ? 'Whole location · who’s in each room' : 'Rooms'}</h2>

@@ -134,3 +134,24 @@ body.inn-m .m-tabs.inn-tabs { grid-template-columns: repeat(4, 1fr); }
 .m-addnote textarea { font-size: 16px; }
 .m-addnote .btn { align-self: flex-start; }
 .res-form input.just-set { box-shadow: 0 0 0 3px var(--gold); transition: box-shadow .3s; }
+
+/* ---------- Checklists (pre-check-in, checkout) */
+.checklist h2 { display: flex; align-items: center; gap: 10px; }
+.cl-count { font: 600 .78rem/1 var(--body); padding: 4px 8px; border-radius: 999px; background: #fdf0d9; color: #8a5a00; }
+.cl-count.all { background: var(--ok-soft, #e3f3e8); color: var(--ok, #23794a); }
+.cl-unit + .cl-unit { margin-top: 10px; }
+.cl-unit h3 { font-size: .95rem; margin: 0 0 4px; }
+.cl-items li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; padding: 5px 0; border-top: 1px solid var(--line); }
+.cl-items li:first-child { border-top: 0; }
+.cl-items li.done .check span { color: var(--muted); }
+.cl-who { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.cl-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.cl-row input[name="item_text[]"] { flex: 1; }
+/* phone */
+.m-cl .cl-items li { padding: 9px 0; }
+.m-cl .check { font-size: 1rem; }
+.m-cl .check input { width: 22px; height: 22px; }
+.m-cl .btn { width: 100%; padding: 13px; margin-top: 6px; }
+.m-flag.cl { background: #fdf0d9; color: #8a5a00; }
+.m-flag.ok { background: #e3f3e8; color: #23794a; }
+.m-clroom { font-size: .95rem; margin: 10px 0 2px; }

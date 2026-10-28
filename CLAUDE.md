@@ -34,6 +34,11 @@ Read this first. The README is the user guide; keep both up to date.
   (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
   `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`
   (settings, locations + room cards, logins), `routes/api.js` (guest search/quick add, availability).
+- Checklists: `lib/checklists.js` (`KINDS` precheck/checkout, `listIdFor` = room's own list else location's,
+  `forReservation(db, r, kind)` → per room (or room_id 0 for a room-less location) items with `done {by, at}`, `progress`,
+  `save`). Tables `checklists`, `checklist_items`, `reservation_checks` (unique reservation+kind+room+item, keeps
+  `item_text`); `locations/rooms.precheck_list_id/checkout_list_id`; `reservations.checked_in_by/checked_out_by`.
+  Admin `/admin/checklists`; ticks `POST /reservations/:id/checks` (`kind`, `c[]` = "room:item", `next`).
 - Lists in pages: `lib/paging.js` (from EMP; `paging(ctx, key, total)` → `limit/offset/nav()`, `pageRows` for in-memory
   lists; 20/50/100/All remembered in a `per_<key>` cookie). Used by `/reservations` and `/guests`.
 - Phone version: `routes/mobile.js` (`/m` today with ‹ › days, `/m/upcoming`, `/m/find`, `/m/r/:id`, `POST /m/r/:id/comment`

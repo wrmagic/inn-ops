@@ -6,14 +6,16 @@ const { str, int, arr, phone, own, now, isTime } = require('../lib/common');
 const { HttpError } = require('../lib/http');
 const auth = require('../lib/auth');
 const R = require('../lib/res');
+const CL = require('../lib/checklists');
 
 const A = { admin: true };
 const ZONES = () => Intl.supportedValuesOf('timeZone').filter((z) => z.startsWith('America/') || z.startsWith('Pacific/') || z === 'UTC').map((z) => [z, z]);
 const time = (v) => (isTime(v) ? v : null);
 
 module.exports = (r, { db }) => {
-  const page = (ctx, title, body, cur) => ctx.html(layout(ctx, { title, active: '/admin', body: html`${pageHead(title, '', cur === '/admin' ? 'Settings, locations, rooms and logins.' : html`<a href="/admin">Admin</a> › ${title}`)}
-    <nav class="tabs" aria-label="Admin">${[['/admin', 'Settings'], ['/admin/locations', 'Locations and rooms'], ['/admin/users', 'Logins']].map(([h, l]) => html`<a href="${h}" class="${h === cur ? 'on' : ''}">${l}</a>`)}</nav>${body}` }));
+  const listId = (v, kind) => (int(v) && db.get('SELECT 1 FROM checklists WHERE id=? AND kind=?', int(v), kind) ? int(v) : null);
+  const page = (ctx, title, body, cur) => ctx.html(layout(ctx, { title, active: '/admin', body: html`${pageHead(title, '', cur === '/admin' ? 'Settings, locations, rooms, checklists and logins.' : html`<a href="/admin">Admin</a> › ${title}`)}
+    <nav class="tabs" aria-label="Admin">${[['/admin', 'Settings'], ['/admin/locations', 'Locations and rooms'], ['/admin/checklists', 'Checklists'], ['/admin/users', 'Logins']].map(([h, l]) => html`<a href="${h}" class="${h === cur ? 'on' : ''}">${l}</a>`)}</nav>${body}` }));
 
   // ---------- Settings
   r.get('/admin', (ctx) => {
@@ -81,6 +83,8 @@ module.exports = (r, { db }) => {
           ${field('Beds and description', input('room_desc[]', x.description, { maxlength: 200, placeholder: 'King bed, private bath, garden view' }), { cls: 'span2' })}
           ${field('Check-in', input('room_in[]', x.check_in_time, { type: 'time' }), { hint: `Blank: ${time12(l.check_in_time || s.check_in_time)}` })}
           ${field('Checkout', input('room_out[]', x.check_out_time, { type: 'time' }), { hint: `Blank: ${time12(l.check_out_time || s.check_out_time)}` })}
+          ${field('Pre-check-in list', select('room_plist[]', CL.listsOf(db, 'precheck').map((c) => [c.id, c.name]), x.precheck_list_id, { blank: `Same as ${l.name}` }))}
+          ${field('Checkout list', select('room_clist[]', CL.listsOf(db, 'checkout').map((c) => [c.id, c.name]), x.checkout_list_id, { blank: `Same as ${l.name}` }))}
           ${field('Special instructions for guests', textarea('room_instr[]', x.instructions, { rows: 2, placeholder: 'Door code, stairs, where the extra towels are…' }), { cls: 'span2' })}
           ${field('Staff notes', textarea('room_notes[]', x.notes, { rows: 2 }), { cls: 'span2' })}
         </div>
@@ -100,6 +104,10 @@ module.exports = (r, { db }) => {
           <div class="grid g2">${field('Buy-out weekday', input('buyout_rate', centsInput(l.buyout_rate_cents), { inputmode: 'decimal', placeholder: '0.00' }), { hint: 'Sun – Thu nights' })}
           ${field('Buy-out weekend', input('buyout_wrate', centsInput(l.buyout_weekend_rate_cents), { inputmode: 'decimal', placeholder: 'Same' }), { hint: 'Fri, Sat nights' })}</div>
         </div>
+        <div class="grid g4">
+          ${field('Pre-check-in list', select('precheck_list_id', CL.listsOf(db, 'precheck').map((c) => [c.id, c.name]), l.precheck_list_id, { blank: 'None' }), { hint: 'Every room here uses it unless the room picks its own.' })}
+          ${field('Checkout list', select('checkout_list_id', CL.listsOf(db, 'checkout').map((c) => [c.id, c.name]), l.checkout_list_id, { blank: 'None' }), { hint: html`Make lists under <a href="/admin/checklists">Admin › Checklists</a>.` })}
+        </div>
         ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }))}
         ${field('Staff notes', textarea('notes', l.notes, { rows: 2 }))}
       </section>
@@ -118,12 +126,12 @@ module.exports = (r, { db }) => {
     db.tx(() => {
       db.update('locations', l.id, { name, color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : null, active: b.active === '0' ? 0 : 1, address1: str(b.address1, 200), city: str(b.city, 100),
         state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), phone: phone(b.phone), check_in_time: time(b.check_in_time), check_out_time: time(b.check_out_time),
-        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
+        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), precheck_list_id: listId(b.precheck_list_id, 'precheck'), checkout_list_id: listId(b.checkout_list_id, 'checkout'), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
       const kept = new Set();
       names.forEach((n, i) => {
         const rn = str(n, 80); if (!rn) return;
         const rec = { name: rn, rate_cents: toCents(col('room_rate', i)) || 0, weekend_rate_cents: toCents(col('room_wrate', i)), max_guests: int(col('room_max', i)), active: col('room_active', i) === '0' ? 0 : 1, description: str(col('room_desc', i), 200),
-          check_in_time: time(col('room_in', i)), check_out_time: time(col('room_out', i)), instructions: str(col('room_instr', i), 3000), notes: str(col('room_notes', i), 3000), sort: i };
+          check_in_time: time(col('room_in', i)), check_out_time: time(col('room_out', i)), precheck_list_id: listId(col('room_plist', i), 'precheck'), checkout_list_id: listId(col('room_clist', i), 'checkout'), instructions: str(col('room_instr', i), 3000), notes: str(col('room_notes', i), 3000), sort: i };
         const rid = int(ids[i]);
         if (rid && db.get('SELECT 1 FROM rooms WHERE id=? AND location_id=?', rid, l.id)) { db.update('rooms', rid, rec); kept.add(rid); }
         else kept.add(db.insert('rooms', { ...rec, location_id: l.id }));
@@ -137,6 +145,71 @@ module.exports = (r, { db }) => {
     });
     ctx.setFlash(`${name} saved.`);
     ctx.redirect(`/admin/locations/${l.id}`);
+  }, A);
+
+  // ---------- Checklists (pre-check-in and checkout)
+  const usedBy = (c) => {
+    const col = CL.KINDS[c.kind].col;
+    return [...db.all(`SELECT name FROM locations WHERE ${col}=? ORDER BY sort, name`, c.id).map((x) => x.name),
+      ...db.all(`SELECT ro.name, l.name lname FROM rooms ro JOIN locations l ON l.id=ro.location_id WHERE ro.${col}=? ORDER BY l.sort, ro.sort`, c.id).map((x) => `${x.lname}: ${x.name}`)];
+  };
+  r.get('/admin/checklists', (ctx) => {
+    const all = db.all('SELECT c.*, (SELECT COUNT(*) FROM checklist_items i WHERE i.checklist_id=c.id) n FROM checklists c ORDER BY c.active DESC, c.sort, c.name COLLATE NOCASE');
+    page(ctx, 'Checklists', html`
+      <form method="post" action="/admin/checklists/new" class="panel add-row">${csrfField(ctx)}<label class="sr" for="ncl">New checklist</label>
+        <input id="ncl" name="name" required maxlength="80" placeholder="Name a new list (e.g. Inn room turnover)">${select('kind', Object.entries(CL.KINDS).map(([k, v]) => [k, v.label]), 'precheck', { 'aria-label': 'Kind' })}<button class="btn">Add list</button></form>
+      <p class="hint">Pick each location’s lists on its page under <a href="/admin/locations">Locations and rooms</a>. Rooms use their location’s lists unless a room picks its own.</p>
+      ${Object.entries(CL.KINDS).map(([k, v]) => { const mine = all.filter((c) => c.kind === k);
+        return html`<section class="panel"><h2>${v.label} lists</h2><p class="hint">${v.hint}</p>
+          ${mine.length ? html`<table class="list"><thead><tr><th>List</th><th>Items</th><th>Used by</th><th></th></tr></thead><tbody>${mine.map((c) => { const u = usedBy(c);
+            return html`<tr class="${c.active ? '' : 'struck'}"><td><a href="/admin/checklists/${c.id}"><b>${c.name}</b></a>${c.active ? '' : badge('Not in use', 'soft')}</td><td>${c.n}</td>
+              <td>${u.length ? u.join(', ') : html`<span class="muted">Not chosen anywhere yet</span>`}</td><td class="num"><a class="btn small ghost" href="/admin/checklists/${c.id}">${icon('pencil')} Edit</a></td></tr>`; })}</tbody></table>`
+    : html`<p class="muted">No ${v.label.toLowerCase()} lists yet.</p>`}</section>`; })}`, '/admin/checklists');
+  }, A);
+  r.post('/admin/checklists/new', (ctx) => {
+    const name = str(ctx.body.name, 80); if (!name) throw new HttpError(422, 'Name the list.');
+    const kind = CL.KINDS[ctx.body.kind] ? ctx.body.kind : 'precheck';
+    const id = db.insert('checklists', { name, kind, sort: (db.get('SELECT MAX(sort) m FROM checklists').m || 0) + 1, created_at: now() });
+    ctx.setFlash(`${name} added. Now add its items.`);
+    ctx.redirect(`/admin/checklists/${id}`);
+  }, A);
+  r.get('/admin/checklists/:id', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id); const items = CL.itemsOf(db, c.id).concat([{}]); const u = usedBy(c);
+    page(ctx, c.name, html`<form method="post" action="/admin/checklists/${c.id}" class="stack form-wide" data-dirty-guard>${csrfField(ctx)}
+      <section class="panel"><h2>${CL.KINDS[c.kind].label} list</h2>
+        <div class="grid g4">${field('Name', input('name', c.name, { required: true, maxlength: 80 }), { cls: 'span2' })}${field('In use', select('active', [['1', 'Yes'], ['0', 'No']], c.active ? '1' : '0'))}</div>
+        <p class="hint">${u.length ? html`Used by: ${u.join(', ')}.` : 'Not chosen for any location or room yet.'}</p></section>
+      <section class="panel"><h2>Items</h2><p class="hint">Each item is a tick box on the reservation. ${CL.KINDS[c.kind].hint}</p>
+        <div class="rows cl-rows" data-rows>${items.map((it) => html`<div class="row cl-row" data-row><input type="hidden" name="item_id[]" value="${it.id || ''}">
+          <input name="item_text[]" value="${it.text || ''}" maxlength="200" placeholder="${it.id ? '' : 'e.g. Fresh towels in the bathroom'}" aria-label="Item">
+          <button type="button" class="btn ghost small danger" data-remove-row aria-label="Remove this item">${icon('x')}</button></div>`)}</div>
+        <button type="button" class="btn ghost small" data-add-row>Add another item</button></section>
+      <div class="form-actions"><button class="btn primary">Save list</button><a class="btn ghost" href="/admin/checklists">Back to checklists</a></div></form>
+      <form method="post" action="/admin/checklists/${c.id}/delete" class="danger-zone" data-confirm="Delete ${c.name}? Locations and rooms using it go back to no list. Ticks already made on reservations are kept.">${csrfField(ctx)}<button class="linkish danger">Delete this list</button></form>`, '/admin/checklists');
+  }, A);
+  r.post('/admin/checklists/:id', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id); const b = ctx.body;
+    const name = str(b.name, 80); if (!name) throw new HttpError(422, 'Name the list.');
+    const ids = arr(b.item_id); const texts = arr(b.item_text);
+    db.tx(() => {
+      db.update('checklists', c.id, { name, active: b.active === '0' ? 0 : 1 });
+      const kept = new Set();
+      texts.forEach((t, i) => {
+        const text = str(t, 200); if (!text) return;
+        const id = int(ids[i]);
+        if (id && db.get('SELECT 1 FROM checklist_items WHERE id=? AND checklist_id=?', id, c.id)) { db.update('checklist_items', id, { text, sort: i }); kept.add(id); }
+        else kept.add(db.insert('checklist_items', { checklist_id: c.id, text, sort: i }));
+      });
+      for (const it of CL.itemsOf(db, c.id)) if (!kept.has(it.id)) db.run('DELETE FROM checklist_items WHERE id=?', it.id);
+    });
+    ctx.setFlash(`${name} saved.`);
+    ctx.redirect(`/admin/checklists/${c.id}`);
+  }, A);
+  r.post('/admin/checklists/:id/delete', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id); const col = CL.KINDS[c.kind].col;
+    db.tx(() => { db.run(`UPDATE locations SET ${col}=NULL WHERE ${col}=?`, c.id); db.run(`UPDATE rooms SET ${col}=NULL WHERE ${col}=?`, c.id); db.run('DELETE FROM checklists WHERE id=?', c.id); });
+    ctx.setFlash(`${c.name} deleted.`);
+    ctx.redirect('/admin/checklists');
   }, A);
 
   // ---------- Logins
