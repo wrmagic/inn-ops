@@ -40,6 +40,9 @@ Read this first. The README is the user guide; keep both up to date.
   `save`). Tables `checklists`, `checklist_items`, `reservation_checks` (unique reservation+kind+room+item, keeps
   `item_text`); `locations/rooms.precheck_list_id/checkout_list_id`; `reservations.checked_in_by/checked_out_by`.
   Admin `/admin/checklists`; ticks `POST /reservations/:id/checks` (`kind`, `c[]` = "room:item", `next`).
+  Ticks save instantly: forms with `data-autocheck=<resId>` → inn.js posts each change to `POST /reservations/:id/check`
+  (`kind`, `key`, `on`) → JSON `{done,total,by,at}`; updates the count and Check in/out confirm text. The per-list Save
+  button is kept only inside `<noscript>`.
 - Check-in desk: `routes/checkin.js` `/checkin?loc=<id|all>&d=` (location remembered in cookie `checkin_loc`; `open=<kind><resId>`
   reopens a list after saving). Arriving (+ overdue not checked in) and leaving cards with steps; posts to the existing
   status/checks routes with `next` back to the desk.

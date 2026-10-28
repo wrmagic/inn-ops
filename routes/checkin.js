@@ -34,10 +34,10 @@ module.exports = (r, { db }) => {
       const done = p.total && p.done === p.total;
       return html`<details class="ci-step ci-list"${open ? raw(' open') : ''}><summary><span class="ci-label">${CL.KINDS[kind].label}</span>
           <span class="cl-count ${done ? 'all' : ''}">${done ? 'Completed' : `${p.done} of ${p.total}`}</span></summary>
-        <form method="post" action="/reservations/${x.id}/checks" class="ci-form">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here(`&open=${kind}${x.id}#r${x.id}`)}">
+        <form method="post" action="/reservations/${x.id}/checks" class="ci-form" data-autocheck="${x.id}">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here(`&open=${kind}${x.id}#r${x.id}`)}">
           ${units.map((u) => html`${units.length > 1 || u.room_id ? html`<h4>${u.room}</h4>` : ''}<ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}</span></label>
             ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, s.timezone)}</small>` : ''}</li>`)}</ul>`)}
-          <button class="btn small">Save list</button></form></details>`;
+          <noscript><button class="btn small">Save list</button></noscript></form></details>`;
     };
     const card = (x, mode) => {
       const pre = CL.forReservation(db, x, 'precheck'); const out = CL.forReservation(db, x, 'checkout');

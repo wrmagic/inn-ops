@@ -81,3 +81,38 @@
   form.querySelectorAll('tr[data-room] input:not([type=checkbox])').forEach((i) => i.addEventListener('input', () => { const c = i.closest('tr').querySelector('[data-room-check]'); if (c && i.name.startsWith('occ_') && i.value.trim()) c.checked = true; }));
   showRooms(); nights();
 })();
+
+// Checklists: each tick or untick is saved the moment it's clicked (no Save button needed)
+(() => {
+  'use strict';
+  document.addEventListener('change', async (e) => {
+    const box = e.target; if (!box.matches || !box.matches('form[data-autocheck] input[name="c[]"]')) return;
+    const form = box.closest('form'); const li = box.closest('li');
+    const kind = (form.querySelector('input[name=kind]') || {}).value; const id = form.dataset.autocheck;
+    const body = new URLSearchParams({ _csrf: (form.querySelector('input[name=_csrf]') || {}).value || '', kind, key: box.value, on: box.checked ? '1' : '0' });
+    if (li) li.classList.add('saving');
+    try {
+      const res = await fetch(`/reservations/${id}/check`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body, credentials: 'same-origin' });
+      const r = await res.json(); if (!res.ok || !r.ok) throw new Error(r.error || 'Not saved');
+      if (li) {
+        li.classList.toggle('done', r.on);
+        let who = li.querySelector('.cl-who');
+        if (r.on) { if (!who) { who = document.createElement('small'); who.className = 'cl-who'; li.appendChild(who); } who.textContent = `${r.by || 'You'} · ${r.at}`; } else if (who) who.remove();
+      }
+      // the count on this list ("3 of 8" / "Completed")
+      const holder = form.closest('details') || form.closest('section') || form.parentElement;
+      const cnt = holder && holder.querySelector('.cl-count');
+      if (cnt) { const all = r.total && r.done === r.total; cnt.classList.toggle('all', all); cnt.textContent = cnt.closest('summary') && all ? 'Completed' : `${r.done} of ${r.total}`; }
+      // Check in / Check out stop asking once everything is ticked
+      const to = kind === 'precheck' ? 'checked_in' : 'checked_out';
+      document.querySelectorAll(`form[action="/reservations/${id}/status"]`).forEach((f) => {
+        const t = f.querySelector('input[name=to]'); if (!t || t.value !== to) return;
+        if (r.done >= r.total) f.removeAttribute('data-confirm');
+        else f.setAttribute('data-confirm', `${r.total - r.done} of the ${r.total} ${kind === 'precheck' ? 'pre-check-in' : 'checkout'} items aren’t ticked yet. Go ahead anyway?`);
+      });
+    } catch (err) {
+      box.checked = !box.checked;
+      alert('That tick wasn’t saved. Check the connection and try again.');
+    } finally { if (li) li.classList.remove('saving'); }
+  });
+})();

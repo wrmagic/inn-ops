@@ -36,7 +36,7 @@ function phone(ctx, { title, back, body, tab = '' }) {
   ${body}
 </main>
 <nav class="m-tabs inn-tabs" aria-label="Phone menu">${TABS.map(([href, label, ic]) => html`<a href="${href}" class="${tab === href ? 'on' : ''}">${icon(ic)}<span>${label}</span></a>`)}</nav>
-<script src="${JS}" defer></script>
+<script src="${JS}" defer></script><script src="${JS.replace('/app.js', '/inn.js')}" defer></script>
 </body></html>`;
 }
 
@@ -120,10 +120,10 @@ module.exports = (r, { db }) => {
       : x.status === 'checked_in' ? btn(ctx, x, 'checked_out', x.depart > today ? `Check out early (due ${dateFmt(x.depart, 'dow')})` : 'Check out', here, 'primary big', notAll(outP, 'checkout')) : '';
     const by = (id) => (id ? (db.get('SELECT name FROM users WHERE id=?', id) || {}).name : '');
     const clCard = (kind, units, p) => (units.length ? html`<section class="m-card m-cl checklist" id="${kind}"><h2 class="m-sub">${CL.KINDS[kind].label} <span class="cl-count ${p.done === p.total ? 'all' : ''}">${p.done} of ${p.total}</span></h2>
-      <form method="post" action="/reservations/${x.id}/checks">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here}#${kind}">
+      <form method="post" action="/reservations/${x.id}/checks" data-autocheck="${x.id}">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here}#${kind}">
         ${units.map((u) => html`${units.length > 1 || u.room_id ? html`<h3 class="m-clroom">${u.room}</h3>` : ''}<ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}</span></label>
           ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, s.timezone)}</small>` : ''}</li>`)}</ul>`)}
-        <button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></form></section>` : '');
+        <noscript><button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></noscript></form></section>` : '');
     const undo = x.status === 'checked_in' ? btn(ctx, x, 'confirmed', 'Undo check-in', here, 'ghost small') : x.status === 'checked_out' ? btn(ctx, x, 'checked_in', 'Undo checkout', here, 'ghost small') : '';
     const block = (label, text, cls = '') => (text ? html`<section class="m-card m-note ${cls}"><h2 class="m-sub">${label}</h2><p class="pre">${text}</p></section>` : '');
     ctx.html(phone(ctx, { title: `#${x.id}`, back, body: html`

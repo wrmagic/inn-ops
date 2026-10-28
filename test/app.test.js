@@ -443,6 +443,24 @@ test('check-in desk: by location and day, with pre-check-in, check in, checkout 
   await get(`/checkin?loc=all`);
 });
 
+test('checklist ticks save one at a time as they are clicked', async () => {
+  let r = await post('/reservations/new', booking([['room_ids[]', String(roomB)]]).map(([k, v]) => (k === 'arrive' ? [k, '2031-07-01'] : k === 'depart' ? [k, '2031-07-02'] : [k, v])));
+  const id = Number(r.location.split('/').pop());
+  const items = db.all('SELECT id FROM checklist_items WHERE checklist_id=(SELECT precheck_list_id FROM locations WHERE id=?) ORDER BY sort', locId);
+  r = await post(`/reservations/${id}/check`, { kind: 'precheck', key: `${roomB}:${items[0].id}`, on: '1' });
+  let j = JSON.parse(r.text);
+  assert.equal(j.ok, true); assert.equal(j.done, 1); assert.equal(j.total, items.length); assert.equal(j.by, 'Administrator'); assert.ok(j.at);
+  r = await post(`/reservations/${id}/check`, { kind: 'precheck', key: `${roomB}:${items[1].id}`, on: '1' });
+  assert.equal(JSON.parse(r.text).done, 2);
+  r = await post(`/reservations/${id}/check`, { kind: 'precheck', key: `${roomB}:${items[0].id}`, on: '0' });
+  j = JSON.parse(r.text); assert.equal(j.done, 1); assert.equal(j.on, false);
+  assert.equal(db.get('SELECT COUNT(*) n FROM reservation_checks WHERE reservation_id=?', id).n, 1);
+  assert.equal((await post(`/reservations/${id}/check`, { kind: 'precheck', key: '999:999', on: '1' })).status, 404);
+  const page = (await get(`/reservations/${id}`)).text;
+  assert.match(page, new RegExp(`data-autocheck="${id}"`));
+  assert.match(page, /<noscript><button class="btn">Save pre-check-in list/);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

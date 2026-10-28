@@ -204,3 +204,4 @@ details.ci-list[open] > summary .cl-count::after { content: ' ▴'; }
 .ci-form h4 { margin: 8px 0 2px; font-size: .9rem; }
 .ci-form .btn { margin-top: 8px; }
 @media (max-width: 700px) { .ci-head { flex-direction: column; } }
+.cl-items li.saving { opacity: .55; }

@@ -24,8 +24,8 @@ completely on its own: its own website, its own database and its own logins.
 - **Checklists** (Admin › Checklists): give a list a name, pick **Pre-check-in** (things to check and confirm before a
   guest arrives) or **Checkout** (what's done when they leave), and **Save list**; then add its items one at a time. Put them in any order with the ▲ ▼ buttons next to each item. Pick each location's lists on its page under
   Locations and rooms; every room there uses them unless the room picks its own list. On a reservation, each room
-  gets its list as tick boxes (the checkout list appears once the guest is checked in); each tick shows who did it
-  and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the
+  gets its list as tick boxes (the checkout list appears once the guest is checked in). Each tick or untick is saved
+  the moment you click it (no Save button), and each tick shows who did it and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the
   guest in and out. The same lists are on the phone version.
 - **No double bookings**: a room can't be booked twice for the same night, and a buy-out can't overlap any booking
   at that location. A guest can arrive the same day the last one leaves.

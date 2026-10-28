@@ -178,11 +178,11 @@ module.exports = (r, { db }) => {
     if (!units.length) return '';
     const tz = ctx.settings.timezone;
     return html`<section class="panel checklist" id="${kind}"><h2>${CL.KINDS[kind].label} <span class="cl-count ${p.done === p.total ? 'all' : ''}">${p.done} of ${p.total}</span></h2>
-      <form method="post" action="/reservations/${x.id}/checks" class="stack">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}">
+      <form method="post" action="/reservations/${x.id}/checks" class="stack" data-autocheck="${x.id}">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}">
         ${units.map((u) => html`<div class="cl-unit">${units.length > 1 || u.room_id ? html`<h3>${u.room}${u.list ? html` <small class="muted">· ${u.list.name}</small>` : ''}</h3>` : ''}
           <ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}${it.old ? html` <small class="muted">(no longer on the list)</small>` : ''}</span></label>
             ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, tz)}</small>` : ''}</li>`)}</ul></div>`)}
-        <div><button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></div></form></section>`;
+        <noscript><button class="btn">Save ${CL.KINDS[kind].label.toLowerCase()} list</button></noscript></form></section>`;
   }
 
   // ---------- One reservation
@@ -266,6 +266,16 @@ module.exports = (r, { db }) => {
     db.update('reservations', x.id, rec);
     ctx.setFlash({ checked_in: 'Checked in.', checked_out: 'Checked out.', cancelled: 'Reservation cancelled.', confirmed: 'Reservation confirmed.', tentative: 'Marked tentative.' }[to]);
     ctx.redirect(ctx.back(`/reservations/${x.id}`));
+  });
+
+  // One tick, saved the moment it's clicked (the page's script sends it; answers with the new count and who ticked it)
+  r.post('/reservations/:id/check', (ctx) => {
+    const x = own(db, 'reservations', ctx.params.id); const b = ctx.body; const kind = CL.KINDS[b.kind] ? b.kind : null;
+    if (!kind) throw new HttpError(422, 'Which checklist?');
+    const on = b.on === '1'; const at = now();
+    if (!CL.setOne(db, x, kind, String(b.key || ''), on, ctx.user.id, at)) throw new HttpError(404, 'That item isn’t on this stay’s list.');
+    const p = CL.progress(CL.forReservation(db, x, kind));
+    ctx.json({ ok: true, on, by: on ? ctx.user.name : '', at: on ? dateTimeFmt(at, ctx.settings.timezone) : '', done: p.done, total: p.total });
   });
 
   r.post('/reservations/:id/checks', (ctx) => {
