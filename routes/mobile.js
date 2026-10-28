@@ -9,7 +9,7 @@ const R = require('../lib/res');
 const CL = require('../lib/checklists');
 
 const CSS2 = CSS.replace('/app.css', '/inn.css');
-const TABS = [['/m', 'Today', 'home'], ['/m/upcoming', 'Coming up', 'cal'], ['/m/find', 'Find', 'search'], ['/', 'Full site', 'screen']];
+const TABS = [['/m', 'Today', 'home'], ['/m/checkin', 'Check-in', 'door'], ['/m/upcoming', 'Coming up', 'cal'], ['/m/find', 'Find', 'search'], ['/', 'Full site', 'screen']];
 
 function phone(ctx, { title, back, body, tab = '' }) {
   const s = ctx.settings || {}; const flash = ctx.flash;
@@ -82,6 +82,62 @@ module.exports = (r, { db }) => {
   });
 
   // ---------- Coming up: arrivals in the next 14 days
+  // ---------- Check-in: pick the location and day; each guest's steps in order (pre-check-in list → check in →
+  // checkout list → check out). Ticks save as they're tapped. Shares the remembered location with the full site.
+  r.get('/m/checkin', (ctx) => {
+    const s = ctx.settings; const today = todayIn(s.timezone); const q = ctx.query;
+    const locs = db.all('SELECT * FROM locations WHERE active=1 ORDER BY sort, name');
+    let loc = q.loc !== undefined ? (q.loc === 'all' ? 0 : Number.parseInt(q.loc, 10) || 0) : Number.parseInt(ctx.cookies.checkin_loc, 10) || 0;
+    if (loc && !locs.some((l) => l.id === loc)) loc = 0;
+    if (q.loc !== undefined) ctx.setCookie('checkin_loc', String(loc), { maxAge: 365 * 86400 });
+    const d = isDate(q.d) ? q.d : today;
+    const here = (extra = '') => `/m/checkin?loc=${loc || 'all'}${d !== today ? `&d=${d}` : ''}${extra}`;
+    const where = loc ? ' AND r.location_id=?' : ''; const args = loc ? [loc] : [];
+    const list = (sql, ...a) => db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND ${sql}${where} ORDER BY r.check_in_time, r.arrive, r.id`, ...a, ...args);
+    const arriving = list("(r.arrive=? OR (r.arrive<? AND r.depart>? AND r.status IN ('tentative','confirmed')))", d, d, d);
+    const leaving = list('r.depart=? AND r.arrive<>?', d, d);
+    const by = (id) => (id ? (db.get('SELECT name FROM users WHERE id=?', id) || {}).name : '');
+    const notAll = (p, what) => (p.total && p.done < p.total ? `${p.total - p.done} of the ${p.total} ${what} items aren’t ticked yet. Go ahead anyway?` : '');
+    const step = (x, kind, units, p) => {
+      if (!units.length) return html`<div class="mci-step"><span class="mci-label">${CL.KINDS[kind].label}</span><span class="muted small">No list set up</span></div>`;
+      const done = p.total && p.done === p.total;
+      return html`<details class="mci-step mci-list"${q.open === `${kind}${x.id}` ? raw(' open') : ''}><summary><span class="mci-label">${CL.KINDS[kind].label}</span><span class="cl-count ${done ? 'all' : ''}">${done ? 'Completed' : `${p.done} of ${p.total}`}</span></summary>
+        <form method="post" action="/reservations/${x.id}/checks" data-autocheck="${x.id}">${csrfField(ctx)}<input type="hidden" name="kind" value="${kind}"><input type="hidden" name="next" value="${here(`&open=${kind}${x.id}#r${x.id}`)}">
+          ${units.map((u) => html`${units.length > 1 || u.room_id ? html`<h4 class="m-clroom">${u.room}</h4>` : ''}<ul class="plain cl-items">${u.items.map((it) => html`<li class="${it.done ? 'done' : ''}"><label class="check"><input type="checkbox" name="c[]" value="${it.key}"${it.done ? raw(' checked') : ''}><span>${it.text}</span></label>
+            ${it.done ? html`<small class="cl-who">${it.done.by || 'Someone'} · ${dateTimeFmt(it.done.at, s.timezone)}</small>` : ''}</li>`)}</ul>`)}
+          <noscript><button class="btn">Save list</button></noscript></form></details>`;
+    };
+    const card = (x, mode) => {
+      const pre = CL.forReservation(db, x, 'precheck'); const out = CL.forReservation(db, x, 'checkout'); const preP = CL.progress(pre); const outP = CL.progress(out);
+      const l = db.get('SELECT * FROM locations WHERE id=?', x.location_id); const rooms = R.roomsOf(db, x.id); const t = R.totals(db, x, s);
+      const isIn = ['checked_in', 'checked_out'].includes(x.status);
+      return html`<section class="m-card m-cl mci-card" id="r${x.id}" style="--c:${R.locColor(l)}">
+        <div class="m-cardhead"><a href="/m/r/${x.id}" class="m-guest mci-name">${R.guestName(guestOf(x))}</a>${badge(R.STATUS[x.status].label, R.STATUS[x.status].badge)}</div>
+        <p class="m-where">${[loc ? '' : (l ? l.name : ''), x.kind === 'buyout' ? 'Whole location' : rooms.map((ro) => ro.name).join(', '),
+          mode === 'arrive' ? (x.check_in_time ? `in from ${time12(x.check_in_time)}` : '') : (x.check_out_time ? `out by ${time12(x.check_out_time)}` : '')].filter(Boolean).join(' · ')}
+          ${mode === 'arrive' && x.arrive < d ? html` ${badge(`Due ${dateFmt(x.arrive, 'dow')}`, 'warn')}` : ''}</p>
+        ${rooms.some((ro) => ro.occupants) ? html`<p class="small mci-occ">${rooms.filter((ro) => ro.occupants).map((ro) => html`<span><b>${ro.name}:</b> ${ro.occupants}</span> `)}</p>` : ''}
+        ${x.special_needs ? html`<p class="ci-need">${x.special_needs}</p>` : ''}${x.comments ? html`<p class="ci-note pre">${x.comments}</p>` : ''}
+        ${t.balance > 0 ? html`<p class="mci-due">${money(t.balance)} due</p>` : ''}
+        ${mode === 'arrive' ? html`${step(x, 'precheck', pre, preP)}
+          <div class="mci-step"><span class="mci-label">Check-in</span>${isIn ? html`<span class="ci-done">Checked in ${dateTimeFmt(x.checked_in_at, s.timezone)}${by(x.checked_in_by) ? ` by ${by(x.checked_in_by)}` : ''}</span>`
+            : btn(ctx, x, 'checked_in', 'Check in', here(`#r${x.id}`), 'primary big', notAll(preP, 'pre-check-in'))}</div>` : ''}
+        ${isIn || mode === 'leave' ? html`${step(x, 'checkout', out, outP)}
+          <div class="mci-step"><span class="mci-label">Checkout</span>${x.status === 'checked_out' ? html`<span class="ci-done">Checked out ${dateTimeFmt(x.checked_out_at, s.timezone)}${by(x.checked_out_by) ? ` by ${by(x.checked_out_by)}` : ''}</span>`
+            : x.status === 'checked_in' ? btn(ctx, x, 'checked_out', 'Check out', here(`#r${x.id}`), 'primary big', notAll(outP, 'checkout')) : html`<span class="muted small">Not checked in yet</span>`}</div>` : ''}
+      </section>`;
+    };
+    ctx.html(phone(ctx, { title: 'Check-in', tab: '/m/checkin', body: html`
+      <nav class="mci-locs" aria-label="Location"><a href="${`/m/checkin?loc=all${d !== today ? `&d=${d}` : ''}`}" class="${loc ? '' : 'on'}">All</a>${locs.map((l) => html`<a href="/m/checkin?loc=${l.id}${d !== today ? `&d=${d}` : ''}" class="${loc === l.id ? 'on' : ''}"><i style="background:${R.locColor(l)}"></i>${l.name}</a>`)}</nav>
+      <nav class="m-daynav"><a href="/m/checkin?loc=${loc || 'all'}&d=${addDays(d, -1)}" aria-label="Previous day">‹</a>
+        <a href="/m/checkin?loc=${loc || 'all'}" class="m-daynav-mid"><b>${d === today ? 'Today' : dateFmt(d, 'dow').split(' ')[0]}</b>, ${dateFmt(d, 'long').split(', ').slice(1).join(', ')}</a>
+        <a href="/m/checkin?loc=${loc || 'all'}&d=${addDays(d, 1)}" aria-label="Next day">›</a></nav>
+      <h2 class="m-sub">Checking in <span class="m-count">${arriving.filter((x) => ['checked_in', 'checked_out'].includes(x.status)).length} of ${arriving.length}</span></h2>
+      ${arriving.length ? arriving.map((x) => card(x, 'arrive')) : html`<section class="m-card"><p class="m-empty">No one checking in${loc ? ' here' : ''}.</p></section>`}
+      <h2 class="m-sub">Checking out <span class="m-count">${leaving.filter((x) => x.status === 'checked_out').length} of ${leaving.length}</span></h2>
+      ${leaving.length ? leaving.map((x) => card(x, 'leave')) : html`<section class="m-card"><p class="m-empty">No one checking out${loc ? ' here' : ''}.</p></section>`}` }));
+  });
+
   r.get('/m/upcoming', (ctx) => {
     const today = todayIn(ctx.settings.timezone);
     const list = live('r.arrive>? AND r.arrive<=?', today, addDays(today, 14));

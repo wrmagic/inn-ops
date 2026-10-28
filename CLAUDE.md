@@ -49,7 +49,7 @@ Read this first. The README is the user guide; keep both up to date.
   status/checks routes with `next` back to the desk.
 - Lists in pages: `lib/paging.js` (from EMP; `paging(ctx, key, total)` → `limit/offset/nav()`, `pageRows` for in-memory
   lists; 20/50/100/All remembered in a `per_<key>` cookie). Used by `/reservations` and `/guests`.
-- Phone version: `routes/mobile.js` (`/m` today with ‹ › days, `/m/upcoming`, `/m/find`, `/m/r/:id`, `POST /m/r/:id/comment`
+- Phone version: `routes/mobile.js` (`/m` today with ‹ › days, `/m/checkin` (phone check-in desk, same cookie `checkin_loc`), `/m/upcoming`, `/m/find`, `/m/r/:id`, `POST /m/r/:id/comment`
   appends `[when, who] text` to `comments`; `/manifest.webmanifest`; icons `public/icon-*.png`). Uses EMP's `.m-*` styles in
   app.css plus `.m-res*` in inn.css. Check in/out posts to `/reservations/:id/status` with `next`.
 - Front end: `public/app.css` + `app.js` (from EMP) and `public/inn.css` + `inn.js` (reservation form, date book).

@@ -94,7 +94,7 @@
 .db-bar { contain: inline-size; overflow: hidden; }
 
 /* ---------- Phone version (/m) */
-body.inn-m .m-tabs.inn-tabs { grid-template-columns: repeat(4, 1fr); }
+body.inn-m .m-tabs.inn-tabs { grid-template-columns: repeat(5, 1fr); }
 .inn-mlogo { background: var(--gold); color: var(--velvet-deep) !important; }
 .inn-mlogo .ico { width: 22px; height: 22px; }
 .m-sub .m-count { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 11px; background: var(--velvet-soft); color: var(--velvet); text-align: center; letter-spacing: 0; }
@@ -210,3 +210,20 @@ details.ci-list[open] > summary .cl-count::after { content: ' ▴'; }
 
 .loc-legend .lg-in i { background: #fff; border: 2px solid #111; box-sizing: border-box; }
 .mv-col { width: 76px; white-space: nowrap; }
+/* phone: Check-in tab */
+.mci-locs { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; -webkit-overflow-scrolling: touch; }
+.mci-locs a { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; font-size: .9rem; }
+.mci-locs a i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mci-locs a.on { background: var(--velvet); border-color: var(--velvet); color: #fff; }
+.mci-card { box-shadow: inset 4px 0 0 var(--c); }
+.mci-name { text-decoration: none; }
+.mci-occ span { margin-right: 10px; }
+.mci-due { color: #a2271c; font-weight: 700; margin: 6px 0; }
+.mci-step { border-top: 1px solid var(--line); padding: 10px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.mci-label { font: 700 .72rem/1.2 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mci-step .btn.big { width: 100%; padding: 14px; font-size: 1.05rem; }
+.mci-step form.inline { display: block; }
+details.mci-list > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+details.mci-list > summary::-webkit-details-marker { display: none; }
+details.mci-list > summary .cl-count::after { content: ' ▾'; }
+details.mci-list[open] > summary .cl-count::after { content: ' ▴'; }

@@ -51,7 +51,9 @@ completely on its own: its own website, its own database and its own logins.
   or All at the bottom. Your choice is remembered for each list on that computer.
 - **Reports**: arrivals and departures for a date range, and a house list (who's in every room on a night). All print.
 - **Phone version** (`/m`, or **Phone version** at the bottom of the menu): today's arrivals, departures and who's
-  staying, with big Check in and Check out buttons; flip to other days with ‹ ›; **Coming up** (the next two weeks);
+  staying, with big Check in and Check out buttons; flip to other days with ‹ ›; **Check-in** (the same as the Check-in
+  page: pick the location and day, then each guest's pre-check-in list, check in, checkout list and check out, with
+  ticks saved as you tap); **Coming up** (the next two weeks);
   **Find** (by guest, who's in a room, event or reservation #). Open a stay to see its rooms, special needs, comments
   and instructions, call or text the guest, check in or out (or undo), and add a comment (saved with the time and
   your name). To put it on your phone's home screen: open the site on the phone, sign in, then Share → Add to Home
