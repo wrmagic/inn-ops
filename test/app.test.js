@@ -539,7 +539,8 @@ test('emergency contacts and check-in details for the guest (text, email, privat
   assert.ok(smsLines.some((l) => l.startsWith('Emergency contact: Sam Night'))); assert.match(smsLines[smsLines.length - 1], /^Details: https/);
   // the email: laid out like the guest's page
   const em = SI.emailHtml(m.facts, m.url);
-  assert.match(em, />Check-in<\/td>/); assert.match(em, />Emergency contact<\/td>/); assert.match(em, /View or print these details/); assert.doesNotMatch(em, /\$\d/);
+assert.doesNotMatch(m.text + em + m.sms, /Test Inns/, 'no business name and phone at the bottom');
+    assert.match(em, />Check-in<\/td>/); assert.match(em, />Emergency contact<\/td>/); assert.match(em, /View or print these details/); assert.doesNotMatch(em, /\$\d/);
   assert.doesNotMatch(m.text + m.sms, /\$\d/, 'no prices');
   assert.doesNotMatch(m.text, /Returning guest/, 'staff comments stay private');
   assert.match(m.sms, /Details: https:\/\/inn\.example\/stay\//);
