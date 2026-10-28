@@ -22,7 +22,7 @@ completely on its own: its own website, its own database and its own logins.
   - money: each night at its weekday or weekend rate (rooms or buy-out), discount, lodging tax, deposit and due date,
     payments and refunds, balance
 - **Checklists** (Admin › Checklists): give a list a name, pick **Pre-check-in** (things to check and confirm before a
-  guest arrives) or **Checkout** (what's done when they leave), and **Save list**; then add its items one at a time. Pick each location's lists on its page under
+  guest arrives) or **Checkout** (what's done when they leave), and **Save list**; then add its items one at a time. Put them in any order with the ▲ ▼ buttons next to each item. Pick each location's lists on its page under
   Locations and rooms; every room there uses them unless the room picks its own list. On a reservation, each room
   gets its list as tick boxes (the checkout list appears once the guest is checked in); each tick shows who did it
   and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the

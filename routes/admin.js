@@ -198,9 +198,12 @@ module.exports = (r, { db }) => {
         <form method="post" action="/admin/checklists/${c.id}/items" class="cl-add">${csrfField(ctx)}<label class="sr" for="cl-item">New item</label>
           <input id="cl-item" name="text" required maxlength="200" placeholder="Add an item, e.g. Fresh towels in the bathroom"${ctx.query.added || !items.length ? raw(' autofocus') : ''}><button class="btn primary">Add</button></form>
         ${items.length ? html`<form method="post" action="/admin/checklists/${c.id}/items/save" class="stack">${csrfField(ctx)}
-          <ol class="cl-list">${items.map((it) => html`<li><input type="hidden" name="item_id[]" value="${it.id}"><input name="item_text[]" value="${it.text}" maxlength="200" aria-label="Item">
+          <button class="cl-enter" tabindex="-1" aria-hidden="true">Save</button>
+          <ol class="cl-list">${items.map((it, i) => html`<li id="item-${it.id}"><input type="hidden" name="item_id[]" value="${it.id}">
+            <span class="cl-move"><button class="icon-btn" formaction="/admin/checklists/${c.id}/items/${it.id}/up" formnovalidate title="Move up" aria-label="Move ${it.text} up"${i === 0 ? raw(' disabled') : ''}>▲</button><button class="icon-btn" formaction="/admin/checklists/${c.id}/items/${it.id}/down" formnovalidate title="Move down" aria-label="Move ${it.text} down"${i === items.length - 1 ? raw(' disabled') : ''}>▼</button></span>
+            <input name="item_text[]" value="${it.text}" maxlength="200" aria-label="Item">
             <label class="cl-del" title="Remove this item"><input type="checkbox" name="remove[]" value="${it.id}"> Remove</label></li>`)}</ol>
-          <div><button class="btn">Save changes to items</button> <span class="hint">Change the wording, or tick Remove, then save.</span></div></form>`
+          <div><button class="btn">Save changes to items</button> <span class="hint">Use ▲ ▼ to change the order. Change the wording, or tick Remove, then save.</span></div></form>`
     : html`<p class="muted">No items yet. Type the first one above and press Add.</p>`}</section>
       <div class="form-actions"><a class="btn ghost" href="/admin/checklists">Back to checklists</a></div>
       <form method="post" action="/admin/checklists/${c.id}/delete" class="danger-zone" data-confirm="Delete ${c.name}? Locations and rooms using it go back to no list. Ticks already made on reservations are kept.">${csrfField(ctx)}<button class="linkish danger">Delete this list</button></form>`,
@@ -221,8 +224,8 @@ module.exports = (r, { db }) => {
     db.insert('checklist_items', { checklist_id: c.id, text, sort: (db.get('SELECT MAX(sort) m FROM checklist_items WHERE checklist_id=?', c.id).m ?? -1) + 1 });
     ctx.redirect(`/admin/checklists/${c.id}?added=1#items`);
   }, A);
-  r.post('/admin/checklists/:id/items/save', (ctx) => {
-    const c = own(db, 'checklists', ctx.params.id); const b = ctx.body;
+  // Saves the wording (and removals) on the items form; the move buttons save it too, so nothing typed is lost
+  const saveItems = (c, b) => {
     const ids = arr(b.item_id); const texts = arr(b.item_text); const gone = new Set(arr(b.remove).map(int));
     db.tx(() => ids.forEach((v, i) => {
       const id = int(v); if (!id || !db.get('SELECT 1 FROM checklist_items WHERE id=? AND checklist_id=?', id, c.id)) return;
@@ -230,9 +233,27 @@ module.exports = (r, { db }) => {
       if (gone.has(id) || !text) db.run('DELETE FROM checklist_items WHERE id=?', id);
       else db.update('checklist_items', id, { text, sort: i });
     }));
+  };
+  r.post('/admin/checklists/:id/items/save', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id);
+    saveItems(c, ctx.body);
     ctx.setFlash('Items saved.');
     ctx.redirect(`/admin/checklists/${c.id}#items`);
   }, A);
+  // ▲ / ▼: swap an item with the one above or below it
+  for (const dir of ['up', 'down']) {
+    r.post(`/admin/checklists/:id/items/:item/${dir}`, (ctx) => {
+      const c = own(db, 'checklists', ctx.params.id);
+      saveItems(c, ctx.body);
+      const items = CL.itemsOf(db, c.id); const i = items.findIndex((x) => x.id === int(ctx.params.item));
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (i >= 0 && j >= 0 && j < items.length) {
+        [items[i], items[j]] = [items[j], items[i]];
+        db.tx(() => items.forEach((x, k) => db.run('UPDATE checklist_items SET sort=? WHERE id=?', k, x.id)));
+      }
+      ctx.redirect(`/admin/checklists/${c.id}#item-${int(ctx.params.item)}`);
+    }, A);
+  }
   r.post('/admin/checklists/:id/delete', (ctx) => {
     const c = own(db, 'checklists', ctx.params.id); const col = CL.KINDS[c.kind].col;
     db.tx(() => { db.run(`UPDATE locations SET ${col}=NULL WHERE ${col}=?`, c.id); db.run(`UPDATE rooms SET ${col}=NULL WHERE ${col}=?`, c.id); db.run('DELETE FROM checklists WHERE id=?', c.id); });

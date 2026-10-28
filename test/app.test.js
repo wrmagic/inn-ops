@@ -336,6 +336,16 @@ test('checklists: location lists, a room’s own list, ticks with who and when, 
   r = await post(`/admin/checklists/${pre}/items/save`, [['item_id[]', ids[0]], ['item_text[]', 'Fresh towels'], ['item_id[]', ids[1]], ['item_text[]', 'Heat on'], ['item_id[]', ids[2]], ['item_text[]', 'Old item'], ['remove[]', String(oldItem)]]);
   assert.equal(r.status, 303);
   assert.equal((await post(`/admin/checklists/${pre}/items`, { text: '' })).status, 422);
+  // ▲ ▼ change the order (and keep wording typed before moving)
+  const [t1, t2] = db.all('SELECT id FROM checklist_items WHERE checklist_id=? ORDER BY sort', pre).map((x) => String(x.id));
+  r = await post(`/admin/checklists/${pre}/items/${t2}/up`, [['item_id[]', t1], ['item_text[]', 'Fresh towels'], ['item_id[]', t2], ['item_text[]', 'Heat on (68°)']]);
+  assert.equal(r.status, 303); assert.match(r.location, new RegExp(`#item-${t2}$`));
+  assert.deepEqual(db.all('SELECT text FROM checklist_items WHERE checklist_id=? ORDER BY sort', pre).map((x) => x.text), ['Heat on (68°)', 'Fresh towels']);
+  await post(`/admin/checklists/${pre}/items/${t2}/up`, []); // already at the top: nothing changes
+  await post(`/admin/checklists/${pre}/items/${t2}/down`, []);
+  assert.deepEqual(db.all('SELECT text FROM checklist_items WHERE checklist_id=? ORDER BY sort', pre).map((x) => x.text), ['Fresh towels', 'Heat on (68°)']);
+  assert.match((await get(`/admin/checklists/${pre}`)).text, /Move Fresh towels up"[^>]*disabled/);
+  await post(`/admin/checklists/${pre}/items/save`, [['item_id[]', t1], ['item_text[]', 'Fresh towels'], ['item_id[]', t2], ['item_text[]', 'Heat on']]);
   assert.deepEqual(db.all('SELECT text FROM checklist_items WHERE checklist_id=? ORDER BY sort', pre).map((x) => x.text), ['Fresh towels', 'Heat on']);
   r = await post('/admin/checklists/new', { name: 'Suite extras', kind: 'precheck' });
   const special = Number(r.location.match(/checklists\/(\d+)/)[1]);
