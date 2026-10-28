@@ -567,6 +567,18 @@ assert.doesNotMatch(m.text + em + m.sms, /Test Inns/, 'no business name and phon
   assert.equal(SI.emergencyOf(db, db.get('SELECT * FROM reservations WHERE id=?', id)).name, 'Maria Lopez', 'falls back to the location’s first contact');
 });
 
+test('add an event from the reservation form without leaving it', async () => {
+  let r = await post('/api/events/quick', { name: '', start_date: '2032-01-01' });
+  assert.equal(r.status, 422);
+  r = await post('/api/events/quick', { name: 'Gala', start_date: '2032-01-05', end_date: '2032-01-01' });
+  assert.equal(r.status, 422);
+  r = await post('/api/events/quick', { name: 'Holiday Gala', start_date: '2032-01-05', end_date: '', location_id: String(locId) });
+  const ev = JSON.parse(r.text);
+  assert.equal(ev.name, 'Holiday Gala'); assert.equal(ev.end_date, '2032-01-05');
+  assert.equal(db.get('SELECT location_id FROM events WHERE id=?', ev.id).location_id, locId);
+  assert.match((await get('/reservations/new')).text, /data-quick-event/);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

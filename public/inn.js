@@ -140,3 +140,39 @@
     try { fetch(`/reservations/${a.dataset.logSent}/details-sent`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body, credentials: 'same-origin', keepalive: true }); } catch { /* not important */ }
   });
 })();
+
+// Reservation form: "+ Add an event" opens a small box; the new event is added to the list and picked, and the form
+// keeps everything typed so far
+(() => {
+  'use strict';
+  const link = document.querySelector('[data-quick-event]'); const dlg = document.querySelector('[data-qe-dlg]');
+  const sel = document.querySelector('[data-res-event]');
+  if (!link || !dlg || !sel || typeof dlg.showModal !== 'function') return;
+  const f = dlg.querySelector('[data-qe-form]'); const err = dlg.querySelector('.qe-err');
+  const arrive = document.querySelector('input[name=arrive]'); const depart = document.querySelector('input[name=depart]');
+  link.addEventListener('click', (e) => {
+    e.preventDefault(); f.reset(); err.hidden = true;
+    if (arrive && arrive.value) f.qe_start.value = arrive.value;
+    if (depart && depart.value) f.qe_end.value = depart.value;
+    dlg.showModal(); f.qe_name.focus();
+  });
+  dlg.querySelector('[data-qe-cancel]').addEventListener('click', () => dlg.close());
+  f.qe_start.addEventListener('change', () => { if (!f.qe_end.value || f.qe_end.value < f.qe_start.value) f.qe_end.value = f.qe_start.value; });
+  const save = async () => {
+    err.hidden = true;
+    const loc = document.querySelector('[data-res-loc]');
+    const body = new URLSearchParams({ _csrf: (document.querySelector('meta[name=csrf]') || {}).content || '', name: f.qe_name.value, start_date: f.qe_start.value, end_date: f.qe_end.value, location_id: loc ? loc.value : '' });
+    try {
+      const res = await fetch('/api/events/quick', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body, credentials: 'same-origin' });
+      const ev = await res.json();
+      if (!res.ok || ev.error) { err.textContent = ev.error || 'The event wasn’t added. Try again.'; err.hidden = false; return; }
+      const o = document.createElement('option'); o.value = ev.id; o.dataset.start = ev.start_date || ''; o.dataset.end = ev.end_date || '';
+      o.textContent = ev.name; sel.appendChild(o);
+      // Keep the stay's own dates (they were typed in already): just pick the event
+      sel.value = String(ev.id);
+      dlg.close();
+    } catch { err.textContent = 'The event wasn’t added. Check the connection and try again.'; err.hidden = false; }
+  };
+  dlg.querySelector('[data-qe-save]').addEventListener('click', save);
+  f.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+})();

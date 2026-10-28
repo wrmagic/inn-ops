@@ -57,7 +57,14 @@ module.exports = (r, { db }) => {
     const busy = isDate(x.arrive) && isDate(x.depart) && x.depart > x.arrive ? R.busyRooms(db, x.arrive, x.depart, x.id || 0) : new Map();
     const t = timesFor(ctx, loc);
     if (!locs.length) return html`<div class="alert warn">Add your locations and rooms first, under <a href="/admin/locations">Admin › Locations and rooms</a>.</div>`;
-    return html`<form method="post" action="${x.id ? `/reservations/${x.id}` : '/reservations/new'}" class="stack form-wide res-form" data-dirty-guard data-res-form data-exclude="${x.id || 0}">${csrfField(ctx)}
+    const quickEvent = html`<dialog class="qe-dlg" data-qe-dlg><form method="dialog" class="stack" data-qe-form>
+        <h2>Add an event</h2>
+        <label class="field"><span class="lbl">Event name</span><input name="qe_name" maxlength="150" placeholder="e.g. Smith–Jones Wedding"></label>
+        <div class="grid g2"><label class="field"><span class="lbl">Starts</span><input type="date" name="qe_start"></label><label class="field"><span class="lbl">Ends</span><input type="date" name="qe_end"></label></div>
+        <p class="qe-err warn-text" hidden></p>
+        <div class="qe-actions"><button type="button" class="btn primary" data-qe-save>Add event</button><button type="button" class="btn ghost" data-qe-cancel>Cancel</button></div>
+      </form></dialog>`;
+    return html`${quickEvent}<form method="post" action="${x.id ? `/reservations/${x.id}` : '/reservations/new'}" class="stack form-wide res-form" data-dirty-guard data-res-form data-exclude="${x.id || 0}">${csrfField(ctx)}
       <section class="panel"><h2>Who and when</h2>
         <fieldset class="seg kind-seg"><legend class="sr">What’s being booked</legend>
           <label><input type="radio" name="kind" value="rooms"${x.kind !== 'buyout' ? raw(' checked') : ''}> Individual rooms</label>
@@ -65,7 +72,7 @@ module.exports = (r, { db }) => {
         <div class="grid g4">
           ${field('Guest (who the reservation is for)', guestPicker('guest_id', guestOf(x), { placeholder: 'Search guests (or add a new one)' }), { cls: 'span2' })}
           ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}" data-buyout-w="${centsInput(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
-          ${field('Event', html`<select name="event_id" data-res-event><option value="">None</option>${events.map((e) => html`<option value="${e.id}" data-start="${e.start_date || ''}" data-end="${e.end_date || ''}"${e.id === x.event_id ? raw(' selected') : ''}>${e.name}${e.start_date ? ` (${dateFmt(e.start_date)}${e.end_date && e.end_date !== e.start_date ? ` – ${dateFmt(e.end_date)}` : ''})` : ''}</option>`)}</select>`, { hint: html`<a href="/events/new" target="_blank" rel="noopener">Add an event</a>` })}
+          ${field('Event', html`<select name="event_id" data-res-event><option value="">None</option>${events.map((e) => html`<option value="${e.id}" data-start="${e.start_date || ''}" data-end="${e.end_date || ''}"${e.id === x.event_id ? raw(' selected') : ''}>${e.name}${e.start_date ? ` (${dateFmt(e.start_date)}${e.end_date && e.end_date !== e.start_date ? ` – ${dateFmt(e.end_date)}` : ''})` : ''}</option>`)}</select>`, { hint: html`<a href="/events/new" target="_blank" rel="noopener" data-quick-event>+ Add an event</a>` })}
           ${field('Arrives', input('arrive', x.arrive, { type: 'date', required: true }))}
           ${field('Departs', input('depart', x.depart, { type: 'date', required: true }))}
           ${field('Check-in time', input('check_in_time', x.check_in_time || t.in, { type: 'time' }))}

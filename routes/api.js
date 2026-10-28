@@ -18,6 +18,18 @@ function findGuests(db, q, limit = 10) {
 module.exports = (r, { db }) => {
   r.get('/api/people', (ctx) => ctx.json(findGuests(db, ctx.query.q).map((g) => ({ id: g.id, name: personName(g, 'first'), detail: [g.phone, g.email, g.city].filter(Boolean).join(' · ') }))));
 
+  // Add an event from the reservation form (the form stays as it is)
+  r.post('/api/events/quick', (ctx) => {
+    const b = ctx.body; const name = str(b.name, 150);
+    if (!name) return ctx.json({ error: 'Name the event.' }, 422);
+    const start = isDate(b.start_date) ? b.start_date : null; let end = isDate(b.end_date) ? b.end_date : null;
+    if (start && end && end < start) return ctx.json({ error: 'The end date is before the start date.' }, 422);
+    if (start && !end) end = start;
+    const loc = Number.parseInt(b.location_id, 10);
+    const id = db.insert('events', { name, start_date: start, end_date: end, location_id: loc && db.get('SELECT 1 FROM locations WHERE id=?', loc) ? loc : null, created_at: now() });
+    ctx.json({ id, name, start_date: start, end_date: end });
+  });
+
   r.post('/api/people/quick', (ctx) => {
     const b = ctx.body; const isOrg = bool(b.is_org);
     const rec = { is_org: isOrg, first: str(b.first, 100), last: str(b.last, 100), org_name: isOrg ? str(b.org_name, 200) : null, phone: phone(b.phone), email: (str(b.email, 200) || '').toLowerCase() || null };

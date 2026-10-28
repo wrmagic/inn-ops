@@ -242,3 +242,8 @@ body.stay-page { background: #f4f1f7; margin: 0; }
 .stay-card .dl { margin-top: 14px; }
 .stay-note { background: #faf8fc; border-radius: 8px; padding: 10px 12px; }
 .ci-send { grid-column: span 2; } .mci-step .send-details .btn { flex: 1; text-align: center; }
+/* Add an event without leaving the reservation form */
+.qe-dlg { border: 0; border-radius: 14px; padding: 22px 24px; width: min(460px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(30, 10, 60, .3); }
+.qe-dlg::backdrop { background: rgba(30, 15, 45, .45); }
+.qe-dlg h2 { margin: 0 0 4px; font-size: 1.2rem; }
+.qe-actions { display: flex; gap: 8px; }
