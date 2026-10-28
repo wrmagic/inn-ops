@@ -12,7 +12,7 @@ module.exports = (r, { db }) => {
   const locations = () => db.all('SELECT * FROM locations WHERE active=1 ORDER BY sort, name');
   /** Stays touching the nights from..to (inclusive), with guest and where. */
   function stays(from, to, locId) {
-    return db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.arrive <= ? AND r.depart > ? ${locId ? 'AND r.location_id=?' : ''} ORDER BY r.arrive, r.id`, to, from, ...(locId ? [locId] : []))
+    return db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.arrive <= ? AND r.depart >= ? ${locId ? 'AND r.location_id=?' : ''} ORDER BY r.arrive, r.id`, to, from, ...(locId ? [locId] : []))
       .map((x) => {
         const g = x.guest_id && db.get('SELECT * FROM guests WHERE id=?', x.guest_id); const loc = db.get('SELECT * FROM locations WHERE id=?', x.location_id);
         const rooms = R.roomsOf(db, x.id);
@@ -54,24 +54,28 @@ module.exports = (r, { db }) => {
   });
   /** Month weeks: day squares behind, and each stay drawn as one bar across the nights it covers (arrival day through
    *  the last night), carried on into the next week's row when it runs past Saturday. */
+  /** Month weeks: day squares behind (two half-day columns each), and each stay drawn as one bar from the middle of its
+   *  arrival day (afternoon check-in) to the middle of its departure day (morning checkout), carried on into the next
+   *  week's row when it runs past Saturday. */
   function weeks(days, all, first, today, loc) {
     const out = [];
     for (let w = 0; w < days.length; w += 7) {
       const wk = days.slice(w, w + 7); const ws = wk[0]; const we = wk[6];
-      const segs = all.filter((x) => x.arrive <= we && R.lastNight(x) >= ws).map((x) => {
-        const s0 = x.arrive < ws ? 0 : daysBetween(ws, x.arrive); const e0 = R.lastNight(x) > we ? 6 : daysBetween(ws, R.lastNight(x));
-        return { x, s0, e0, contL: x.arrive < ws, contR: R.lastNight(x) > we };
-      }).sort((a, b) => a.s0 - b.s0 || (b.e0 - b.s0) - (a.e0 - a.s0) || a.x.id - b.x.id);
-      // lanes: the first row a bar fits in without overlapping
+      const segs = all.filter((x) => x.arrive <= we && x.depart >= ws).map((x) => {
+        const a = x.arrive < ws ? 1 : 2 * daysBetween(ws, x.arrive) + 2;   // grid line: afternoon of arrival
+        const e = x.depart > we ? 15 : 2 * daysBetween(ws, x.depart) + 2;  // grid line: morning of departure
+        return { x, a, e, contL: x.arrive < ws, contR: x.depart > we };
+      }).filter((sg) => sg.e > sg.a).sort((p, q) => p.a - q.a || (q.e - q.a) - (p.e - p.a) || p.x.id - q.x.id);
+      // lanes: the first row a bar fits in (a stay leaving in the morning and one arriving that afternoon can share)
       const lanes = [];
-      for (const sg of segs) { let i = 0; while (lanes[i] && lanes[i].some((o) => !(sg.e0 < o.s0 || sg.s0 > o.e0))) i++; (lanes[i] = lanes[i] || []).push(sg); sg.lane = i; }
+      for (const sg of segs) { let i = 0; while (lanes[i] && lanes[i].some((o) => sg.a < o.e && o.a < sg.e)) i++; (lanes[i] = lanes[i] || []).push(sg); sg.lane = i; }
       const outs = (d) => all.filter((x) => x.depart === d).length;
       out.push(html`<div class="mo-week" style="--lanes:${Math.max(lanes.length, 1)}">
-        ${wk.map((d, i) => html`<div class="mo-cell ${d.slice(0, 7) !== first.slice(0, 7) ? 'out' : ''} ${d === today ? 'today' : ''}" style="grid-column:${i + 1}">
+        ${wk.map((d, i) => html`<div class="mo-cell ${d.slice(0, 7) !== first.slice(0, 7) ? 'out' : ''} ${d === today ? 'today' : ''}" style="grid-column:${2 * i + 1} / span 2">
           <a class="mo-n" href="/datebook?from=${d}${loc ? `&location=${loc}` : ''}" title="Open the date book from this day">${fromISO(d).getUTCDate()}</a>
           <div class="mo-foot"><a class="wk-add" href="/reservations/new?arrive=${d}${loc ? `&location=${loc}` : ''}" aria-label="New reservation arriving ${dateFmt(d)}">+</a>${outs(d) ? html`<small class="mo-outs">${outs(d)} leaving</small>` : ''}</div></div>`)}
         ${segs.map((sg) => { const x = sg.x; return html`<a class="mo-bar st-${x.status}${sg.contL ? ' cont-l' : ''}${sg.contR ? ' cont-r' : ''}${x.kind === 'buyout' ? ' buyout' : ''}" href="/reservations/${x.id}"
-          style="grid-column:${sg.s0 + 1} / ${sg.e0 + 2};grid-row:${sg.lane + 2};--c:${x.color}" title="${x.guest} · ${x.short} · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)} · ${R.STATUS[x.status].label}">
+          style="grid-column:${sg.a} / ${sg.e};grid-row:${sg.lane + 2};--c:${x.color}" title="${x.guest} · ${x.short} · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)} · ${R.STATUS[x.status].label}">
           <b>${x.guest}</b><small> · ${x.short}</small></a>`; })}
       </div>`);
     }

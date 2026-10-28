@@ -259,11 +259,13 @@ body.stay-page { background: #f4f1f7; margin: 0; }
 .db-day b, .db-day small { display: block; text-align: center; white-space: nowrap; }
 
 /* ---------- Calendar month: each stay is one bar across its nights (like Google Calendar) */
-.mo-bars .mo-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 34px repeat(var(--lanes), 24px) minmax(40px, auto);
+.mo-bars .mo-week { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: 34px repeat(var(--lanes), 24px) minmax(40px, auto);
   row-gap: 3px; position: relative; border-bottom: 1px solid var(--line); min-height: 112px; }
 .mo-bars .mo-week:last-child { border-bottom: 0; }
 .mo-bars .mo-cell { grid-row: 1 / -1; border-right: 1px solid var(--line); padding: 4px; display: flex; flex-direction: column; min-width: 0; }
 .mo-bars .mo-cell:nth-child(7) { border-right: 0; }
+.mo-bar { margin: 0 2px; }
+.mo-bar.cont-l { margin-left: 0; } .mo-bar.cont-r { margin-right: 0; }
 .mo-bars .mo-cell.out { background: #faf9fc; }
 .mo-bars .mo-cell.out .mo-n { color: #b3adc0; }
 .mo-bars .mo-cell.today .mo-n { background: var(--gold); color: var(--velvet-deep); }

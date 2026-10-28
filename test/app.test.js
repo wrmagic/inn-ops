@@ -589,15 +589,16 @@ test('date book: a buy-out has its own line; rooms show names typed for them or 
   assert.match(page, /bo-room st-confirmed bo-empty/, 'a room without names is an empty outline');
 });
 
-test('calendar month: each stay is one bar across its nights, carried into the next week', async () => {
+test('calendar month: each stay is one bar from mid arrival day to mid departure day, carried into the next week', async () => {
   // Fri 2034-03-03 to Tue 2034-03-07: nights Fri, Sat (week 1), Sun, Mon (week 2)
   const r = await post('/reservations/new', booking([['room_ids[]', String(roomA)]]).map(([k, v]) => (k === 'arrive' ? [k, '2034-03-03'] : k === 'depart' ? [k, '2034-03-07'] : [k, v])));
   const id = Number(r.location.split('/').pop());
   const page = (await get(`/calendar?date=2034-03-01&location=${locId}`)).text;
   const bars = page.match(new RegExp(`<a class="mo-bar[^"]*" href="/reservations/${id}"[^>]*style="grid-column:[^;]+`, 'g')) || [];
   assert.equal(bars.length, 2, 'one bar per week it touches');
-  assert.match(bars[0], /cont-r/); assert.match(bars[0], /grid-column:6 \/ 8/);
-  assert.match(bars[1], /cont-l/); assert.match(bars[1], /grid-column:1 \/ 3/);
+  // half-day columns: from the middle of Friday (line 12) past Saturday; then to the middle of Tuesday (line 6)
+  assert.match(bars[0], /cont-r/); assert.match(bars[0], /grid-column:12 \/ 15/);
+  assert.match(bars[1], /cont-l/); assert.match(bars[1], /grid-column:1 \/ 6/);
 });
 
 test('staff logins can’t open Admin', async () => {
