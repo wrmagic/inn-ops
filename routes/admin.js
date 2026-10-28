@@ -1,12 +1,13 @@
 'use strict';
 // Admin: the business's settings, locations and their rooms, and logins.
-const { html, money, centsInput, toCents, time12 } = require('../lib/html');
+const { html, raw, money, centsInput, toCents, time12 } = require('../lib/html');
 const { layout, csrfField, field, input, textarea, select, pageHead, empty, badge, icon } = require('../lib/views');
 const { str, int, arr, phone, own, now, isTime } = require('../lib/common');
 const { HttpError } = require('../lib/http');
 const auth = require('../lib/auth');
 const R = require('../lib/res');
 const CL = require('../lib/checklists');
+const { adminPage, adminHome } = require('../lib/adminnav');
 
 const A = { admin: true };
 const ZONES = () => Intl.supportedValuesOf('timeZone').filter((z) => z.startsWith('America/') || z.startsWith('Pacific/') || z === 'UTC').map((z) => [z, z]);
@@ -14,14 +15,13 @@ const time = (v) => (isTime(v) ? v : null);
 
 module.exports = (r, { db }) => {
   const listId = (v, kind) => (int(v) && db.get('SELECT 1 FROM checklists WHERE id=? AND kind=?', int(v), kind) ? int(v) : null);
-  const page = (ctx, title, body, cur) => ctx.html(layout(ctx, { title, active: '/admin', body: html`${pageHead(title, '', cur === '/admin' ? 'Settings, locations, rooms, checklists and logins.' : html`<a href="/admin">Admin</a> › ${title}`)}
-    <nav class="tabs" aria-label="Admin">${[['/admin', 'Settings'], ['/admin/locations', 'Locations and rooms'], ['/admin/checklists', 'Checklists'], ['/admin/users', 'Logins']].map(([h, l]) => html`<a href="${h}" class="${h === cur ? 'on' : ''}">${l}</a>`)}</nav>${body}` }));
+  const page = (ctx, title, body, cur, crumbs) => adminPage(ctx, { title, body, cur, crumbs });
 
-  // ---------- Settings
-  r.get('/admin', (ctx) => {
+  // ---------- Admin home, business details, stay defaults
+  r.get('/admin', (ctx) => adminPage(ctx, { title: 'Admin', cur: '/admin', sub: `Settings for ${ctx.settings.name || 'Inn Ops'}.`, body: adminHome(ctx, db) }), A);
+  r.get('/admin/business', (ctx) => {
     const s = ctx.settings;
-    page(ctx, 'Admin', html`<form method="post" action="/admin" class="panel stack form-wide" data-dirty-guard>${csrfField(ctx)}
-      <h2>Your business</h2>
+    page(ctx, 'Business details', html`<form method="post" action="/admin/business" class="panel stack form-wide" data-dirty-guard>${csrfField(ctx)}
       <div class="grid g4">
         ${field('Business name', input('name', s.name, { required: true, maxlength: 120 }), { cls: 'span2' })}
         ${field('Phone', input('phone', s.phone, { type: 'tel' }))}${field('Email', input('email', s.email, { type: 'email' }))}
@@ -29,24 +29,33 @@ module.exports = (r, { db }) => {
         <div class="grid g2">${field('State', input('state', s.state, { maxlength: 2 }))}${field('ZIP', input('postal', s.postal))}</div>
         ${field('Website', input('website', s.website), { cls: 'span2' })}${field('Time zone', select('timezone', ZONES(), s.timezone), { cls: 'span2' })}
       </div>
-      <h2>Stays</h2>
+      <div class="form-actions"><button class="btn primary">Save</button></div></form>`, '/admin/business');
+  }, A);
+  r.post('/admin/business', (ctx) => {
+    const b = ctx.body;
+    db.update('settings', 1, { name: str(b.name, 120) || 'Inn Ops', phone: phone(b.phone), email: str(b.email, 200), website: str(b.website, 200), address1: str(b.address1, 200), city: str(b.city, 100),
+      state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), timezone: ZONES().some(([z]) => z === b.timezone) ? b.timezone : 'America/Los_Angeles' });
+    ctx.setFlash('Business details saved.');
+    ctx.redirect('/admin/business');
+  }, A);
+  r.get('/admin/stays', (ctx) => {
+    const s = ctx.settings;
+    page(ctx, 'Stay defaults', html`<form method="post" action="/admin/stays" class="panel stack form-wide" data-dirty-guard>${csrfField(ctx)}
       <div class="grid g4">
         ${field('Usual check-in time', input('check_in_time', s.check_in_time, { type: 'time' }), { hint: 'A location or room can have its own.' })}
         ${field('Usual checkout time', input('check_out_time', s.check_out_time, { type: 'time' }))}
         ${field('Lodging tax %', input('tax_percent', s.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay (e.g. 10 for 10%).' })}
       </div>
       ${field('Note printed on every confirmation', textarea('confirm_note', s.confirm_note, { rows: 3, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}
-      <div class="form-actions"><button class="btn primary">Save</button></div></form>`, '/admin');
+      <div class="form-actions"><button class="btn primary">Save</button></div></form>`, '/admin/stays');
   }, A);
-  r.post('/admin', (ctx) => {
+  r.post('/admin/stays', (ctx) => {
     const b = ctx.body;
     const tax = Number(String(b.tax_percent || '0').replace(/[%\s]/g, ''));
     if (!Number.isFinite(tax) || tax < 0 || tax > 50) throw new HttpError(422, 'Enter the lodging tax as a percent, like 10.');
-    db.update('settings', 1, { name: str(b.name, 120) || 'Inn Ops', phone: phone(b.phone), email: str(b.email, 200), website: str(b.website, 200), address1: str(b.address1, 200), city: str(b.city, 100),
-      state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), timezone: ZONES().some(([z]) => z === b.timezone) ? b.timezone : 'America/Los_Angeles',
-      check_in_time: time(b.check_in_time) || '15:00', check_out_time: time(b.check_out_time) || '11:00', tax_percent: tax, confirm_note: str(b.confirm_note, 3000) });
-    ctx.setFlash('Settings saved.');
-    ctx.redirect('/admin');
+    db.update('settings', 1, { check_in_time: time(b.check_in_time) || '15:00', check_out_time: time(b.check_out_time) || '11:00', tax_percent: tax, confirm_note: str(b.confirm_note, 3000) });
+    ctx.setFlash('Stay defaults saved.');
+    ctx.redirect('/admin/stays');
   }, A);
 
   // ---------- Locations and rooms
@@ -115,7 +124,7 @@ module.exports = (r, { db }) => {
         <div class="rows room-rows" data-rows>${rows.map(room)}</div>
         <button type="button" class="btn ghost small" data-add-row>Add another room</button>
       </section>
-      <div class="form-actions"><button class="btn primary">Save ${l.name}</button><a class="btn ghost" href="/admin/locations">Back to locations</a></div></form>`, '/admin/locations');
+      <div class="form-actions"><button class="btn primary">Save ${l.name}</button><a class="btn ghost" href="/admin/locations">Back to locations</a></div></form>`, '/admin/locations', [['/admin/locations', 'Locations and rooms']]);
   }, A);
 
   r.post('/admin/locations/:id', (ctx) => {
@@ -147,18 +156,21 @@ module.exports = (r, { db }) => {
     ctx.redirect(`/admin/locations/${l.id}`);
   }, A);
 
-  // ---------- Checklists (pre-check-in and checkout)
+  // ---------- Checklists (pre-check-in and checkout): name a list and save it, then add its items
   const usedBy = (c) => {
     const col = CL.KINDS[c.kind].col;
     return [...db.all(`SELECT name FROM locations WHERE ${col}=? ORDER BY sort, name`, c.id).map((x) => x.name),
       ...db.all(`SELECT ro.name, l.name lname FROM rooms ro JOIN locations l ON l.id=ro.location_id WHERE ro.${col}=? ORDER BY l.sort, ro.sort`, c.id).map((x) => `${x.lname}: ${x.name}`)];
   };
+  const kindPick = (cur, disabled) => html`<fieldset class="seg cl-kind"${disabled ? raw(' disabled') : ''}><legend class="sr">Type of list</legend>${Object.entries(CL.KINDS).map(([k, v]) => html`<label><input type="radio" name="kind" value="${k}"${k === cur ? raw(' checked') : ''}> ${v.label}</label>`)}</fieldset>`;
   r.get('/admin/checklists', (ctx) => {
     const all = db.all('SELECT c.*, (SELECT COUNT(*) FROM checklist_items i WHERE i.checklist_id=c.id) n FROM checklists c ORDER BY c.active DESC, c.sort, c.name COLLATE NOCASE');
     page(ctx, 'Checklists', html`
-      <form method="post" action="/admin/checklists/new" class="panel add-row">${csrfField(ctx)}<label class="sr" for="ncl">New checklist</label>
-        <input id="ncl" name="name" required maxlength="80" placeholder="Name a new list (e.g. Inn room turnover)">${select('kind', Object.entries(CL.KINDS).map(([k, v]) => [k, v.label]), 'precheck', { 'aria-label': 'Kind' })}<button class="btn">Add list</button></form>
-      <p class="hint">Pick each location’s lists on its page under <a href="/admin/locations">Locations and rooms</a>. Rooms use their location’s lists unless a room picks its own.</p>
+      <form method="post" action="/admin/checklists/new" class="panel stack">${csrfField(ctx)}<h2>New checklist</h2>
+        <div class="cl-new">${field('List name', input('name', '', { required: true, maxlength: 80, placeholder: 'e.g. Inn room turnover' }))}
+          <div class="field"><span class="lbl">Type of list</span>${kindPick('precheck')}</div></div>
+        <div><button class="btn primary">Save list</button> <span class="hint">Then add its items.</span></div></form>
+      <p class="hint">Use a list by choosing it for a location (every room there follows it) or for one room, under <a href="/admin/locations">Locations and rooms</a>.</p>
       ${Object.entries(CL.KINDS).map(([k, v]) => { const mine = all.filter((c) => c.kind === k);
         return html`<section class="panel"><h2>${v.label} lists</h2><p class="hint">${v.hint}</p>
           ${mine.length ? html`<table class="list"><thead><tr><th>List</th><th>Items</th><th>Used by</th><th></th></tr></thead><tbody>${mine.map((c) => { const u = usedBy(c);
@@ -170,40 +182,56 @@ module.exports = (r, { db }) => {
     const name = str(ctx.body.name, 80); if (!name) throw new HttpError(422, 'Name the list.');
     const kind = CL.KINDS[ctx.body.kind] ? ctx.body.kind : 'precheck';
     const id = db.insert('checklists', { name, kind, sort: (db.get('SELECT MAX(sort) m FROM checklists').m || 0) + 1, created_at: now() });
-    ctx.setFlash(`${name} added. Now add its items.`);
-    ctx.redirect(`/admin/checklists/${id}`);
+    ctx.setFlash(`${name} saved. Now add its items.`);
+    ctx.redirect(`/admin/checklists/${id}#items`);
   }, A);
   r.get('/admin/checklists/:id', (ctx) => {
-    const c = own(db, 'checklists', ctx.params.id); const items = CL.itemsOf(db, c.id).concat([{}]); const u = usedBy(c);
-    page(ctx, c.name, html`<form method="post" action="/admin/checklists/${c.id}" class="stack form-wide" data-dirty-guard>${csrfField(ctx)}
-      <section class="panel"><h2>${CL.KINDS[c.kind].label} list</h2>
-        <div class="grid g4">${field('Name', input('name', c.name, { required: true, maxlength: 80 }), { cls: 'span2' })}${field('In use', select('active', [['1', 'Yes'], ['0', 'No']], c.active ? '1' : '0'))}</div>
-        <p class="hint">${u.length ? html`Used by: ${u.join(', ')}.` : 'Not chosen for any location or room yet.'}</p></section>
-      <section class="panel"><h2>Items</h2><p class="hint">Each item is a tick box on the reservation. ${CL.KINDS[c.kind].hint}</p>
-        <div class="rows cl-rows" data-rows>${items.map((it) => html`<div class="row cl-row" data-row><input type="hidden" name="item_id[]" value="${it.id || ''}">
-          <input name="item_text[]" value="${it.text || ''}" maxlength="200" placeholder="${it.id ? '' : 'e.g. Fresh towels in the bathroom'}" aria-label="Item">
-          <button type="button" class="btn ghost small danger" data-remove-row aria-label="Remove this item">${icon('x')}</button></div>`)}</div>
-        <button type="button" class="btn ghost small" data-add-row>Add another item</button></section>
-      <div class="form-actions"><button class="btn primary">Save list</button><a class="btn ghost" href="/admin/checklists">Back to checklists</a></div></form>
-      <form method="post" action="/admin/checklists/${c.id}/delete" class="danger-zone" data-confirm="Delete ${c.name}? Locations and rooms using it go back to no list. Ticks already made on reservations are kept.">${csrfField(ctx)}<button class="linkish danger">Delete this list</button></form>`, '/admin/checklists');
+    const c = own(db, 'checklists', ctx.params.id); const items = CL.itemsOf(db, c.id); const u = usedBy(c);
+    page(ctx, c.name, html`
+      <form method="post" action="/admin/checklists/${c.id}" class="panel stack" data-dirty-guard>${csrfField(ctx)}<h2>The list</h2>
+        <div class="cl-new">${field('List name', input('name', c.name, { required: true, maxlength: 80 }))}
+          <div class="field"><span class="lbl">Type of list</span>${kindPick(c.kind, u.length > 0)}${u.length ? html`<small class="hint">In use, so the type stays as it is.</small>` : ''}</div>
+          ${field('In use', select('active', [['1', 'Yes'], ['0', 'No']], c.active ? '1' : '0'))}</div>
+        <p class="hint">${u.length ? html`Used by: ${u.join(', ')}.` : html`Not used yet. Choose it for a location or room under <a href="/admin/locations">Locations and rooms</a>.`}</p>
+        <div><button class="btn">Save</button></div></form>
+      <section class="panel" id="items"><h2>Items <small class="muted">${items.length}</small></h2>
+        <form method="post" action="/admin/checklists/${c.id}/items" class="cl-add">${csrfField(ctx)}<label class="sr" for="cl-item">New item</label>
+          <input id="cl-item" name="text" required maxlength="200" placeholder="Add an item, e.g. Fresh towels in the bathroom"${ctx.query.added || !items.length ? raw(' autofocus') : ''}><button class="btn primary">Add</button></form>
+        ${items.length ? html`<form method="post" action="/admin/checklists/${c.id}/items/save" class="stack">${csrfField(ctx)}
+          <ol class="cl-list">${items.map((it) => html`<li><input type="hidden" name="item_id[]" value="${it.id}"><input name="item_text[]" value="${it.text}" maxlength="200" aria-label="Item">
+            <label class="cl-del" title="Remove this item"><input type="checkbox" name="remove[]" value="${it.id}"> Remove</label></li>`)}</ol>
+          <div><button class="btn">Save changes to items</button> <span class="hint">Change the wording, or tick Remove, then save.</span></div></form>`
+    : html`<p class="muted">No items yet. Type the first one above and press Add.</p>`}</section>
+      <div class="form-actions"><a class="btn ghost" href="/admin/checklists">Back to checklists</a></div>
+      <form method="post" action="/admin/checklists/${c.id}/delete" class="danger-zone" data-confirm="Delete ${c.name}? Locations and rooms using it go back to no list. Ticks already made on reservations are kept.">${csrfField(ctx)}<button class="linkish danger">Delete this list</button></form>`,
+    '/admin/checklists', [['/admin/checklists', 'Checklists']]);
   }, A);
   r.post('/admin/checklists/:id', (ctx) => {
     const c = own(db, 'checklists', ctx.params.id); const b = ctx.body;
     const name = str(b.name, 80); if (!name) throw new HttpError(422, 'Name the list.');
-    const ids = arr(b.item_id); const texts = arr(b.item_text);
-    db.tx(() => {
-      db.update('checklists', c.id, { name, active: b.active === '0' ? 0 : 1 });
-      const kept = new Set();
-      texts.forEach((t, i) => {
-        const text = str(t, 200); if (!text) return;
-        const id = int(ids[i]);
-        if (id && db.get('SELECT 1 FROM checklist_items WHERE id=? AND checklist_id=?', id, c.id)) { db.update('checklist_items', id, { text, sort: i }); kept.add(id); }
-        else kept.add(db.insert('checklist_items', { checklist_id: c.id, text, sort: i }));
-      });
-      for (const it of CL.itemsOf(db, c.id)) if (!kept.has(it.id)) db.run('DELETE FROM checklist_items WHERE id=?', it.id);
-    });
+    const rec = { name, active: b.active === '0' ? 0 : 1 };
+    if (CL.KINDS[b.kind] && b.kind !== c.kind && !usedBy(c).length) rec.kind = b.kind;
+    db.update('checklists', c.id, rec);
     ctx.setFlash(`${name} saved.`);
     ctx.redirect(`/admin/checklists/${c.id}`);
+  }, A);
+  r.post('/admin/checklists/:id/items', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id); const text = str(ctx.body.text, 200);
+    if (!text) throw new HttpError(422, 'Type the item.');
+    db.insert('checklist_items', { checklist_id: c.id, text, sort: (db.get('SELECT MAX(sort) m FROM checklist_items WHERE checklist_id=?', c.id).m ?? -1) + 1 });
+    ctx.redirect(`/admin/checklists/${c.id}?added=1#items`);
+  }, A);
+  r.post('/admin/checklists/:id/items/save', (ctx) => {
+    const c = own(db, 'checklists', ctx.params.id); const b = ctx.body;
+    const ids = arr(b.item_id); const texts = arr(b.item_text); const gone = new Set(arr(b.remove).map(int));
+    db.tx(() => ids.forEach((v, i) => {
+      const id = int(v); if (!id || !db.get('SELECT 1 FROM checklist_items WHERE id=? AND checklist_id=?', id, c.id)) return;
+      const text = str(texts[i], 200);
+      if (gone.has(id) || !text) db.run('DELETE FROM checklist_items WHERE id=?', id);
+      else db.update('checklist_items', id, { text, sort: i });
+    }));
+    ctx.setFlash('Items saved.');
+    ctx.redirect(`/admin/checklists/${c.id}#items`);
   }, A);
   r.post('/admin/checklists/:id/delete', (ctx) => {
     const c = own(db, 'checklists', ctx.params.id); const col = CL.KINDS[c.kind].col;

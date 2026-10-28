@@ -33,7 +33,8 @@ Read this first. The README is the user guide; keep both up to date.
 - Pages: `routes/reservations.js` (list, form, view, status, payments, confirmation), `routes/calendar.js`
   (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
   `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`
-  (settings, locations + room cards, logins), `routes/api.js` (guest search/quick add, availability).
+  (`/admin` home of tiles from `lib/adminnav.js` SECTIONS like EMP; `/admin/business`, `/admin/stays`, locations + room cards,
+  checklists (name+type saved first, then items added one at a time `POST /admin/checklists/:id/items`), logins), `routes/api.js` (guest search/quick add, availability).
 - Checklists: `lib/checklists.js` (`KINDS` precheck/checkout, `listIdFor` = room's own list else location's,
   `forReservation(db, r, kind)` → per room (or room_id 0 for a room-less location) items with `done {by, at}`, `progress`,
   `save`). Tables `checklists`, `checklist_items`, `reservation_checks` (unique reservation+kind+room+item, keeps

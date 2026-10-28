@@ -155,3 +155,15 @@ body.inn-m .m-tabs.inn-tabs { grid-template-columns: repeat(4, 1fr); }
 .m-flag.cl { background: #fdf0d9; color: #8a5a00; }
 .m-flag.ok { background: #e3f3e8; color: #23794a; }
 .m-clroom { font-size: .95rem; margin: 10px 0 2px; }
+
+/* Admin › Checklists */
+.cl-new { display: grid; grid-template-columns: minmax(0, 1.6fr) auto auto; gap: 14px; align-items: start; }
+.cl-new .cl-kind { margin: 0; }
+.cl-add { display: flex; gap: 8px; margin: 0 0 14px; }
+.cl-add input { flex: 1; min-width: 0; font-size: 1rem; }
+.cl-list { margin: 0; padding-left: 24px; }
+.cl-list li { padding: 4px 0; }
+.cl-list li > div, .cl-list li { display: list-item; }
+.cl-list li input[name="item_text[]"] { width: calc(100% - 120px); }
+.cl-del { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-size: .85rem; color: var(--muted); white-space: nowrap; }
+@media (max-width: 700px) { .cl-new { grid-template-columns: 1fr; } .cl-list li input[name="item_text[]"] { width: 100%; } }

@@ -21,8 +21,8 @@ completely on its own: its own website, its own database and its own logins.
   - status: Tentative, Confirmed, Checked in, Checked out, Cancelled
   - money: each night at its weekday or weekend rate (rooms or buy-out), discount, lodging tax, deposit and due date,
     payments and refunds, balance
-- **Checklists** (Admin › Checklists): make **Pre-check-in** lists (things to check and confirm before a guest
-  arrives) and **Checkout** lists (what's done when they leave). Pick each location's lists on its page under
+- **Checklists** (Admin › Checklists): give a list a name, pick **Pre-check-in** (things to check and confirm before a
+  guest arrives) or **Checkout** (what's done when they leave), and **Save list**; then add its items one at a time. Pick each location's lists on its page under
   Locations and rooms; every room there uses them unless the room picks its own list. On a reservation, each room
   gets its list as tick boxes (the checkout list appears once the guest is checked in); each tick shows who did it
   and when. **Check in** / **Check out** ask first if items are still unticked, and the stay shows who checked the
@@ -34,6 +34,8 @@ completely on its own: its own website, its own database and its own logins.
   afternoon it arrives to the morning it leaves. Click a bar to open the stay, or an empty day to book that room.
   Dashed bars are buy-outs; striped bars are tentative.
   A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
+- **Admin** works like Event Master Plus: a home page of tiles (Your business: Business details, Logins; Lodging:
+  Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page.
 - **Dashboard**: today's arrivals and departures with Check in and Check out buttons, who's staying, how full each
   location is tonight, what's coming up, and money still owed.
 - **Guests** and **Events**: a profile for each guest with all their stays; each event lists its reservations and
@@ -55,7 +57,8 @@ completely on its own: its own website, its own database and its own logins.
 2. When it asks, fill in **ADMIN_PASSWORD** (the first password for the `admin` login) and **BASE_URL**
    (the site's web address, e.g. `https://inn-ops.onrender.com`).
 3. Open the site and sign in as `admin`. Then:
-   - **Admin → Settings**: your business name, address, time zone, default check-in/checkout times and lodging tax.
+   - **Admin → Business details**: your business name, address and time zone; **Admin → Stay defaults**: usual
+     check-in/checkout times, lodging tax and the confirmation note.
    - **Admin → Locations and rooms**: the four locations are already there; open each one and add its rooms and rates.
    - **Admin → Logins**: add a login for each staff member (Staff can do everything but Admin).
 
