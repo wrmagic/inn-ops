@@ -8,7 +8,7 @@ const auth = require('./lib/auth');
 const { html } = require('./lib/html');
 const { layout, bare } = require('./lib/views');
 
-const ROUTES = ['auth', 'dashboard', 'reservations', 'calendar', 'guests', 'events', 'reports', 'admin', 'api', 'mobile'];
+const ROUTES = ['auth', 'dashboard', 'checkin', 'reservations', 'calendar', 'guests', 'events', 'reports', 'admin', 'api', 'mobile'];
 const DEFAULT_DB = path.join(__dirname, 'data', 'innops.db');
 
 function createApp({ dbFile = process.env.DATABASE_FILE || DEFAULT_DB } = {}) {

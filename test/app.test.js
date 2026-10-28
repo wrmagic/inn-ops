@@ -410,6 +410,39 @@ test('checklists: location lists, a room’s own list, ticks with who and when, 
   assert.match((await get(`/reservations/${id}`)).text, /Champagne on ice/);
 });
 
+test('check-in desk: by location and day, with pre-check-in, check in, checkout list and check out', async () => {
+  // A new stay at the test location with lists set (from the checklist test)
+  let r = await post('/reservations/new', booking([['room_ids[]', String(roomB)]]).map(([k, v]) => (k === 'arrive' ? [k, '2031-05-06'] : k === 'depart' ? [k, '2031-05-08'] : [k, v])));
+  const id = Number(r.location.split('/').pop());
+  let page = (await get(`/checkin?loc=${locId}&d=2031-05-06`)).text;
+  assert.match(page, new RegExp(`id="r${id}"`));
+  assert.match(page, /Checking in/); assert.match(page, /0 of 1 checked in/);
+  assert.match(page, /Pre-check-in/); assert.match(page, /0 of 2/);
+  assert.doesNotMatch(page, /Check out<\/button>/, 'checkout comes after check-in');
+  // the location is remembered
+  assert.match((await get('/checkin?d=2031-05-06')).text, new RegExp(`id="r${id}"`));
+  // another location shows nobody
+  const other = db.get('SELECT id FROM locations WHERE id<>? ORDER BY id LIMIT 1', locId).id;
+  assert.doesNotMatch((await get(`/checkin?loc=${other}&d=2031-05-06`)).text, new RegExp(`id="r${id}"`));
+  // tick the pre-check-in list from the desk, then check in
+  const items = db.all('SELECT id FROM checklist_items WHERE checklist_id=(SELECT precheck_list_id FROM locations WHERE id=?) ORDER BY sort', locId);
+  const next = `/checkin?loc=${locId}&d=2031-05-06&open=precheck${id}#r${id}`;
+  r = await post(`/reservations/${id}/checks`, [['kind', 'precheck'], ...items.map((it) => ['c[]', `${roomB}:${it.id}`]), ['next', next]]);
+  assert.equal(r.location, next);
+  page = (await get(`/checkin?loc=${locId}&d=2031-05-06`)).text;
+  assert.match(page, /Completed/);
+  await post(`/reservations/${id}/status`, { to: 'checked_in', next: `/checkin?loc=${locId}&d=2031-05-06#r${id}` });
+  page = (await get(`/checkin?loc=${locId}&d=2031-05-06`)).text;
+  assert.match(page, /Checked in [^<]* by Administrator/); assert.match(page, /1 of 1 checked in/);
+  assert.match(page, /Check out<\/button>/);
+  // on the day they leave, they're under Checking out
+  page = (await get(`/checkin?loc=${locId}&d=2031-05-08`)).text;
+  assert.match(page, /Checking out/); assert.match(page, new RegExp(`id="r${id}"`)); assert.match(page, /0 of 1 checked out/);
+  await post(`/reservations/${id}/status`, { to: 'checked_out' });
+  assert.match((await get(`/checkin?loc=${locId}&d=2031-05-08`)).text, /1 of 1 checked out/);
+  await get(`/checkin?loc=all`);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

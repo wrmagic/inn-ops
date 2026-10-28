@@ -36,6 +36,11 @@ completely on its own: its own website, its own database and its own logins.
   A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
 - **Admin** works like Event Master Plus: a home page of tiles (Your business: Business details, Logins; Lodging:
   Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page.
+- **Check-in** (menu): pick a location (or All; remembered on that computer) and a day (‹ Today ›). **Checking in** lists
+  everyone arriving (and anyone due earlier who isn't checked in yet) with their rooms, who's in them, special needs,
+  comments and balance. Each guest's steps run in order: **Pre-check-in** (shows "2 of 8" or **Completed**; click to
+  open the tick list right there), **Check in** (then shows when and by whom), then the **Checkout** list and **Check out**.
+  **Checking out** lists that day's departures with their checkout list and Check out button.
 - **Dashboard**: today's arrivals and departures with Check in and Check out buttons, who's staying, how full each
   location is tonight, what's coming up, and money still owed.
 - **Guests** and **Events**: a profile for each guest with all their stays; each event lists its reservations and
