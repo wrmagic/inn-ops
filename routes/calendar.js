@@ -77,6 +77,12 @@ module.exports = (r, { db }) => {
     for (const x of db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.arrive <= ? AND r.depart > ? AND NOT EXISTS (SELECT 1 FROM reservation_rooms rr WHERE rr.reservation_id=r.id) ORDER BY r.arrive`, to, from)) {
       if (!byLoc.has(x.location_id)) byLoc.set(x.location_id, []); byLoc.get(x.location_id).push(x);
     }
+    // Buy-outs of locations that have rooms: one bar on the location's own "Full buy-out" line
+    const buyByLoc = new Map();
+    for (const x of db.all(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.kind='buyout' AND r.arrive <= ? AND r.depart > ? ORDER BY r.arrive`, to, from)) {
+      if (!buyByLoc.has(x.location_id)) buyByLoc.set(x.location_id, []); buyByLoc.get(x.location_id).push(x);
+    }
+    const evName = new Map(); const evOf = (x) => { if (!x.event_id) return ''; if (!evName.has(x.event_id)) evName.set(x.event_id, (db.get('SELECT name FROM events WHERE id=?', x.event_id) || {}).name || ''); return evName.get(x.event_id); };
     const guestOf = new Map(); const gname = (x) => { if (!guestOf.has(x.guest_id)) guestOf.set(x.guest_id, R.guestName(x.guest_id ? db.get('SELECT * FROM guests WHERE id=?', x.guest_id) : null)); return guestOf.get(x.guest_id); };
     const cols = `minmax(150px, 190px) repeat(${n * 2}, minmax(${n > 14 ? 13 : 22}px, 1fr))`;
     const bar = (x, color) => {
@@ -85,6 +91,19 @@ module.exports = (r, { db }) => {
       const occ = x.occupants ? ` (${x.occupants})` : '';
       return html`<a class="db-bar st-${x.status}${a < 0 ? ' cont-l' : ''}${dd >= n ? ' cont-r' : ''}${x.kind === 'buyout' ? ' buyout' : ''}" style="grid-column:${start} / ${end};--c:${color}" href="/reservations/${x.id}"
         title="${gname(x)}${occ} · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)} · ${R.STATUS[x.status].label}${x.kind === 'buyout' ? ' · full buy-out' : ''}"><span>${gname(x)}${x.occupants && x.occupants !== gname(x) ? html`<small> · ${x.occupants}</small>` : ''}</span></a>`;
+    };
+    // Inside a buy-out, a room's own line: the names typed for it, or an empty outline when none
+    const roomInBuyout = (x, color) => {
+      const a = daysBetween(from, x.arrive); const dd = daysBetween(from, x.depart);
+      const start = a < 0 ? 2 : 3 + a * 2; const end = dd >= n ? 2 + n * 2 : 3 + dd * 2;
+      const cls = `db-bar bo-room st-${x.status}${x.occupants ? '' : ' bo-empty'}${a < 0 ? ' cont-l' : ''}${dd >= n ? ' cont-r' : ''}`;
+      return html`<a class="${cls}" style="grid-column:${start} / ${end};--c:${color}" href="/reservations/${x.id}" title="${x.occupants ? `${x.occupants} · ` : 'No one named for this room · '}part of ${gname(x)}’s buy-out">${x.occupants ? html`<span>${x.occupants}</span>` : ''}</a>`;
+    };
+    const buyoutBar = (x, color) => {
+      const a = daysBetween(from, x.arrive); const dd = daysBetween(from, x.depart);
+      const start = a < 0 ? 2 : 3 + a * 2; const end = dd >= n ? 2 + n * 2 : 3 + dd * 2; const ev = evOf(x);
+      return html`<a class="db-bar buyout st-${x.status}${a < 0 ? ' cont-l' : ''}${dd >= n ? ' cont-r' : ''}" style="grid-column:${start} / ${end};--c:${color}" href="/reservations/${x.id}"
+        title="${gname(x)} · full buy-out · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)} · ${R.STATUS[x.status].label}${ev ? ` · ${ev}` : ''}"><span>${gname(x)}${ev ? html`<small> · ${ev}</small>` : ''}${x.adults ? html`<small> · ${x.adults} adults</small>` : ''}</span></a>`;
     };
     const qs = (o) => `?${new URLSearchParams(Object.fromEntries(Object.entries({ from, days: n, location: loc || '', ...o }).filter(([, v]) => v !== '' && v !== null)))}`;
     const body = html`${pageHead('Date book', html`<a class="btn ghost" href="/calendar">Calendar</a><a class="btn primary" href="/reservations/new">New reservation</a>`, 'Each room on its own line. Click a stay to open it, or an empty day to book that room.')}
@@ -95,10 +114,14 @@ module.exports = (r, { db }) => {
         <div class="db-row db-head"><div class="db-room">Room</div>${days.map((d) => html`<div class="db-day${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}"><small>${n > 14 ? DOW1[dow(d)] : DOW3[dow(d)]}</small><b>${fromISO(d).getUTCDate()}</b></div>`)}</div>
         ${locs.map((l) => { const rooms = db.all('SELECT * FROM rooms WHERE location_id=? AND active=1 ORDER BY sort, name', l.id); const color = R.locColor(l);
           return html`<div class="db-loc" style="--c:${color}"><span class="dot" style="background:${color}"></span>${l.name} <a class="small" href="/reservations/new?kind=buyout&location=${l.id}&arrive=${from > today ? from : today}">Book a buy-out</a></div>
+            ${rooms.length ? html`<div class="db-row db-buyrow">
+              <div class="db-room"><b>Full buy-out</b><small>the whole ${l.name}</small></div>
+              ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?kind=buyout&location=${l.id}&arrive=${d}" aria-label="Book a buy-out of ${l.name} from ${dateFmt(d)}"></a>`)}
+              ${(buyByLoc.get(l.id) || []).map((x) => buyoutBar(x, color))}</div>` : ''}
             ${rooms.length ? rooms.map((ro) => html`<div class="db-row">
               <div class="db-room"><b>${ro.name}</b>${ro.max_guests ? html`<small>sleeps ${ro.max_guests}</small>` : ''}</div>
               ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?room=${ro.id}&arrive=${d}" aria-label="Book ${ro.name} from ${dateFmt(d)}"></a>`)}
-              ${(byRoom.get(ro.id) || []).map((x) => bar(x, color))}</div>`) : html`<div class="db-row">
+              ${(byRoom.get(ro.id) || []).map((x) => (x.kind === 'buyout' ? roomInBuyout(x, color) : bar(x, color)))}</div>`) : html`<div class="db-row">
               <div class="db-room"><b>Whole location</b><small>sold as a buy-out</small></div>
               ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?kind=buyout&location=${l.id}&arrive=${d}" aria-label="Book ${l.name} from ${dateFmt(d)}"></a>`)}
               ${(byLoc.get(l.id) || []).map((x) => bar(x, color))}</div>`}`; })}

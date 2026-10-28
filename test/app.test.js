@@ -579,6 +579,16 @@ test('add an event from the reservation form without leaving it', async () => {
   assert.match((await get('/reservations/new')).text, /data-quick-event/);
 });
 
+test('date book: a buy-out has its own line; rooms show names typed for them or an empty outline', async () => {
+  const r = await post('/reservations/new', booking([['occ_' + roomA, 'The Bride']]).map(([k, v]) => (k === 'kind' ? [k, 'buyout'] : k === 'arrive' ? [k, '2033-02-01'] : k === 'depart' ? [k, '2033-02-03'] : [k, v])));
+  assert.equal(r.status, 303, r.text);
+  const page = (await get(`/datebook?from=2033-01-31&days=7&location=${locId}`)).text;
+  assert.match(page, /db-buyrow/); assert.match(page, /<b>Full buy-out<\/b>/);
+  assert.match(page, /class="db-bar buyout[^"]*"[^>]*>[\s\S]*?Pat Tester/);
+  assert.match(page, /bo-room st-confirmed[^"]*"[^>]*>[^<]*<span>The Bride<\/span>/, 'a room with names shows them');
+  assert.match(page, /bo-room st-confirmed bo-empty/, 'a room without names is an empty outline');
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

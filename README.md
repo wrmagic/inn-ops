@@ -42,7 +42,9 @@ completely on its own: its own website, its own database and its own logins.
 - **Calendar** (Calendar): a month view and a list, with every stay on each night it covers. Click + on a day to book.
 - **Date book** (Date book): every room on its own line, 7, 14 or 30 days at a time. Each stay is a bar from the
   afternoon it arrives to the morning it leaves. Click a bar to open the stay, or an empty day to book that room.
-  Dashed bars are buy-outs; striped bars are tentative; white bars with a black outline are guests checked in.
+  A buy-out shows on the location's own **Full buy-out** line (guest, event, number of adults); on the room lines below
+  it, a room shows the names typed for it, or an empty grey outline if no one is named.
+  Striped bars are tentative; white bars with a black outline are guests checked in.
   A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
 - **Admin** works like Event Master Plus: a home page of tiles (Your business: Business details, Logins; Lodging:
   Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page. **Stay defaults**

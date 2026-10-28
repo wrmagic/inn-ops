@@ -247,3 +247,10 @@ body.stay-page { background: #f4f1f7; margin: 0; }
 .qe-dlg::backdrop { background: rgba(30, 15, 45, .45); }
 .qe-dlg h2 { margin: 0 0 4px; font-size: 1.2rem; }
 .qe-actions { display: flex; gap: 8px; }
+/* Date book: buy-outs on their own line; the rooms inside show names typed for them, or an empty outline */
+.db-buyrow { background: color-mix(in srgb, var(--c, #7a4fb3) 5%, transparent); }
+.db-buyrow .db-room b { color: var(--velvet, #3d2156); }
+.db-bar.bo-room { background: color-mix(in srgb, var(--c) 18%, #fff); color: #2a2438; border: 1.5px solid color-mix(in srgb, var(--c) 55%, #fff); box-shadow: none; font-weight: 500; }
+.db-bar.bo-room.bo-empty { background: transparent; border: 1.5px solid #c9c4d2; }
+.db-bar.bo-room.st-checked_in { background: #fff; border: 2px solid #111; color: #111; }
+.db-bar.bo-room.bo-empty.st-checked_in { border: 2px solid #999; }
