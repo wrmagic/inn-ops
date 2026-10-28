@@ -21,7 +21,7 @@ module.exports = (r, { db }) => {
   }
   const chip = (x, d, mini) => html`<a class="chip res-chip st-${x.status}${x.arrive === d ? ' arr' : ''}" style="--c:${x.color}" href="/reservations/${x.id}" title="${x.guest} · ${x.short} · ${dateFmt(x.arrive)} – ${dateFmt(x.depart)}">${x.arrive === d ? html`<b>${mini ? '' : '→ '}${x.guest}</b>` : x.guest}${mini ? '' : html`<small>${x.short}</small>`}</a>`;
   const locFilter = (ctx, loc, keep) => html`<form method="get" class="inline-filter">${Object.entries(keep).map(([k, v]) => html`<input type="hidden" name="${k}" value="${v}">`)}${select('location', locations(), loc, { blank: 'All locations', 'aria-label': 'Location', 'data-autosubmit': true })}<noscript><button class="btn small">Show</button></noscript></form>`;
-  const legend = () => html`<div class="loc-legend">${locations().map((l) => html`<span><i style="background:${R.locColor(l)}"></i>${l.name}</span>`)}</div>`;
+  const legend = (inHouse) => html`<div class="loc-legend">${locations().map((l) => html`<span><i style="background:${R.locColor(l)}"></i>${l.name}</span>`)}${inHouse ? html`<span class="lg-in"><i></i>Checked in</span>` : ''}</div>`;
 
   // ---------- Calendar
   r.get('/calendar', (ctx) => {
@@ -102,7 +102,7 @@ module.exports = (r, { db }) => {
               <div class="db-room"><b>Whole location</b><small>sold as a buy-out</small></div>
               ${days.map((d, i) => html`<a class="db-cell${d === today ? ' today' : ''}${[0, 6].includes(dow(d)) ? ' wkend' : ''}" style="grid-column:${2 + i * 2} / span 2" href="/reservations/new?kind=buyout&location=${l.id}&arrive=${d}" aria-label="Book ${l.name} from ${dateFmt(d)}"></a>`)}
               ${(byLoc.get(l.id) || []).map((x) => bar(x, color))}</div>`}`; })}
-      </div>${legend()}` : empty('No locations yet. Add them under Admin › Locations and rooms.')}`;
+      </div>${legend(true)}` : empty('No locations yet. Add them under Admin › Locations and rooms.')}`;
     ctx.html(layout(ctx, { title: 'Date book', body }));
   });
 };

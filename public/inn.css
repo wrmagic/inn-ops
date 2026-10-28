@@ -70,8 +70,10 @@
 .db-bar.cont-l { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; } .db-bar.cont-r { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
 .db-bar.st-tentative { background: repeating-linear-gradient(45deg, var(--c) 0 8px, color-mix(in srgb, var(--c) 70%, #fff) 8px 16px); }
 .db-bar.st-checked_out { background: color-mix(in srgb, var(--c) 45%, #fff); color: #2a2438; }
-.db-bar.st-checked_in { box-shadow: 0 0 0 2px #fff inset, 0 1px 3px rgba(0, 0, 0, .25); }
+.db-bar.st-checked_in { background: #fff; color: #111; border: 2px solid #111; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+.db-bar.st-checked_in small { opacity: .75; }
 .db-bar.buyout { border: 2px dashed rgba(255, 255, 255, .7); }
+.db-bar.buyout.st-checked_in { border: 2px dashed #111; }
 .db-loc { position: sticky; left: 0; padding: 10px 12px 6px; font-weight: 700; color: #2a2438; border-top: 2px solid var(--c); background: color-mix(in srgb, var(--c) 7%, #fff); min-width: max-content; }
 .db-loc a { font-weight: 400; margin-left: 12px; }
 
@@ -205,3 +207,5 @@ details.ci-list[open] > summary .cl-count::after { content: ' ▴'; }
 .ci-form .btn { margin-top: 8px; }
 @media (max-width: 700px) { .ci-head { flex-direction: column; } }
 .cl-items li.saving { opacity: .55; }
+
+.loc-legend .lg-in i { background: #fff; border: 2px solid #111; box-sizing: border-box; }
