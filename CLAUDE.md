@@ -34,7 +34,8 @@ Read this first. The README is the user guide; keep both up to date.
   (`/calendar` month/list, `/datebook` grid: 2 grid columns per day so bars run afternoon→morning),
   `routes/dashboard.js`, `routes/guests.js`, `routes/events.js`, `routes/reports.js`, `routes/admin.js`
   (`/admin` home of tiles from `lib/adminnav.js` SECTIONS like EMP; `/admin/business`, `/admin/stays` (one block per location: times, `locations.tax_percent`, `locations.confirm_note`;
-  `totals()` uses the location's tax, falling back to `settings`), locations + room cards,
+  `totals()` uses the location's tax, falling back to `settings`; `locations.default_needs/default_instructions` prefill a new
+  reservation's boxes, and inn.js swaps them on location change via option `data-needs`/`data-instr` unless edited), locations + room cards,
   checklists (name+type saved first, then items added one at a time `POST /admin/checklists/:id/items`), logins), `routes/api.js` (guest search/quick add, availability).
 - Checklists: `lib/checklists.js` (`KINDS` precheck/checkout, `listIdFor` = room's own list else location's,
   `forReservation(db, r, kind)` → per room (or room_id 0 for a room-less location) items with `done {by, at}`, `progress`,

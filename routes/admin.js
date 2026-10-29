@@ -43,7 +43,7 @@ module.exports = (r, { db }) => {
   r.get('/admin/stays', (ctx) => {
     const locs = db.all('SELECT * FROM locations ORDER BY sort, name');
     page(ctx, 'Stay defaults', html`<form method="post" action="/admin/stays" class="stack form-wide" data-dirty-guard>${csrfField(ctx)}
-      <p class="hint">Each location’s usual check-in and checkout times (a room can still have its own), its lodging tax, and the note printed on its confirmations.</p>
+      <p class="hint">Each location’s usual check-in and checkout times (a room can still have its own), its lodging tax, the note printed on its confirmations, and the special needs and instructions each new reservation there starts with.</p>
       ${locs.length ? locs.map((l) => html`<section class="panel stay-loc"><h2><span class="dot" style="background:${R.locColor(l)}"></span>${l.name}${l.active ? '' : html` ${badge('Not in use', 'soft')}`}</h2>
         <input type="hidden" name="loc_id[]" value="${l.id}">
         <div class="grid g4">
@@ -51,12 +51,14 @@ module.exports = (r, { db }) => {
           ${field('Checkout time', input('loc_out[]', l.check_out_time, { type: 'time' }))}
           ${field('Lodging tax %', input('loc_tax[]', l.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay here (e.g. 10 for 10%).' })}
         </div>
-        ${field('Note printed on its confirmations', textarea('loc_note[]', l.confirm_note, { rows: 2, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}</section>`) : empty('No locations yet.')}
+        ${field('Note printed on its confirmations', textarea('loc_note[]', l.confirm_note, { rows: 2, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}
+        <div class="grid g2">${field('Special needs for new reservations', textarea('loc_needs[]', l.default_needs, { rows: 2, placeholder: 'e.g. Stairs only, no elevator' }), { hint: 'Filled in on each new reservation here; change it there as needed.' })}
+          ${field('Special instructions for new reservations', textarea('loc_instr[]', l.default_instructions, { rows: 2, placeholder: 'e.g. Key is in the lockbox by the front door' }), { hint: 'Filled in on each new reservation here; change it there as needed.' })}</div></section>`) : empty('No locations yet.')}
       <div class="form-actions"><button class="btn primary">Save</button></div></form>`, '/admin/stays');
   }, A);
   r.post('/admin/stays', (ctx) => {
     const b = ctx.body; const ids = arr(b.loc_id); const col = (k, i) => arr(b[k])[i];
-    const rows = ids.map((v, i) => { const l = int(v) && db.get('SELECT * FROM locations WHERE id=?', int(v)); return l && { l, rec: { check_in_time: time(col('loc_in', i)), check_out_time: time(col('loc_out', i)), tax_percent: taxOf(col('loc_tax', i), l.name), confirm_note: str(col('loc_note', i), 3000) } }; }).filter(Boolean);
+    const rows = ids.map((v, i) => { const l = int(v) && db.get('SELECT * FROM locations WHERE id=?', int(v)); return l && { l, rec: { check_in_time: time(col('loc_in', i)), check_out_time: time(col('loc_out', i)), tax_percent: taxOf(col('loc_tax', i), l.name), confirm_note: str(col('loc_note', i), 3000), default_needs: str(col('loc_needs', i), 4000), default_instructions: str(col('loc_instr', i), 4000) } }; }).filter(Boolean);
     db.tx(() => rows.forEach(({ l, rec }) => db.update('locations', l.id, rec)));
     ctx.setFlash('Stay defaults saved.');
     ctx.redirect('/admin/stays');
@@ -136,7 +138,9 @@ module.exports = (r, { db }) => {
         </div>
         <div class="grid g4">${field('Lodging tax %', input('tax_percent', l.tax_percent || '', { inputmode: 'decimal', placeholder: '0' }), { hint: 'Added to every stay here.' })}</div>
         ${field('Note printed on its confirmations', textarea('confirm_note', l.confirm_note, { rows: 2, placeholder: 'Parking, Wi-Fi, cancellation policy, how to reach us…' }))}
-        ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }))}
+        ${field('Special instructions for guests', textarea('instructions', l.instructions, { rows: 2, placeholder: 'Parking, gate code, who to call…' }), { hint: 'Shown to every guest here, along with their reservation’s own instructions.' })}
+        <div class="grid g2">${field('Special needs for new reservations', textarea('default_needs', l.default_needs, { rows: 2 }), { hint: 'Filled in on each new reservation here; change it there as needed.' })}
+          ${field('Special instructions for new reservations', textarea('default_instructions', l.default_instructions, { rows: 2 }), { hint: 'Filled in on each new reservation here; change it there as needed.' })}</div>
         ${field('Staff notes', textarea('notes', l.notes, { rows: 2 }))}
       </section>
       <section class="panel"><h2>Emergency contacts</h2>
@@ -164,7 +168,7 @@ module.exports = (r, { db }) => {
     db.tx(() => {
       db.update('locations', l.id, { name, color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : null, active: b.active === '0' ? 0 : 1, address1: str(b.address1, 200), city: str(b.city, 100),
         state: (str(b.state, 2) || '').toUpperCase() || null, postal: str(b.postal, 20), phone: phone(b.phone), check_in_time: time(b.check_in_time), check_out_time: time(b.check_out_time),
-        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), precheck_list_id: listId(b.precheck_list_id, 'precheck'), checkout_list_id: listId(b.checkout_list_id, 'checkout'), tax_percent: taxOf(b.tax_percent, name), confirm_note: str(b.confirm_note, 3000), instructions: str(b.instructions, 3000), notes: str(b.notes, 3000) });
+        buyout_rate_cents: toCents(b.buyout_rate), buyout_weekend_rate_cents: toCents(b.buyout_wrate), precheck_list_id: listId(b.precheck_list_id, 'precheck'), checkout_list_id: listId(b.checkout_list_id, 'checkout'), tax_percent: taxOf(b.tax_percent, name), confirm_note: str(b.confirm_note, 3000), instructions: str(b.instructions, 3000), default_needs: str(b.default_needs, 4000), default_instructions: str(b.default_instructions, 4000), notes: str(b.notes, 3000) });
       const kept = new Set();
       names.forEach((n, i) => {
         const rn = str(n, 80); if (!rn) return;

@@ -601,6 +601,23 @@ test('calendar month: each stay is one bar from mid arrival day to mid departure
   assert.match(bars[1], /cont-l/); assert.match(bars[1], /grid-column:1 \/ 6/);
 });
 
+test('new reservations start with the location’s special needs and instructions, which can be changed', async () => {
+  const others = db.all('SELECT id FROM locations WHERE id<>? ORDER BY id', locId);
+  const row = (id, needs, instr) => [['loc_id[]', String(id)], ['loc_in[]', '16:00'], ['loc_out[]', '10:00'], ['loc_tax[]', ''], ['loc_note[]', ''], ['loc_needs[]', needs], ['loc_instr[]', instr]];
+  const r = await post('/admin/stays', [...row(locId, 'Stairs only', 'Key in the lockbox'), ...others.flatMap((o) => row(o.id, '', ''))]);
+  assert.equal(r.status, 303);
+  const after = db.get('SELECT * FROM locations WHERE id=?', locId);
+  assert.equal(after.default_needs, 'Stairs only'); assert.equal(after.default_instructions, 'Key in the lockbox');
+  const form = (await get(`/reservations/new?location=${locId}`)).text;
+  assert.match(form, /<textarea name="special_needs"[^>]*>Stairs only<\/textarea>/);
+  assert.match(form, /<textarea name="special_instructions"[^>]*>Key in the lockbox<\/textarea>/);
+  assert.match(form, /data-needs="Stairs only"/, 'switching location swaps them in the browser');
+  // an existing reservation keeps what it has
+  assert.doesNotMatch((await get(`/reservations/${resId}/edit`)).text, />Key in the lockbox<\/textarea>/);
+  // the location page edits them too
+  assert.match((await get(`/admin/locations/${locId}`)).text, /Special needs for new reservations/);
+});
+
 test('staff logins can’t open Admin', async () => {
   const r = await post('/admin/users', { name: 'Desk', username: 'desk', password: 'desk-password-1', role: 'staff' });
   assert.equal(r.status, 303, r.text);

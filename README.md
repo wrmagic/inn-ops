@@ -16,7 +16,8 @@ completely on its own: its own website, its own database and its own logins.
   - the guest, the dates (arrives and departs), check-in and checkout times, adults and children
   - for each room, its rate and **who's staying in it**
   - **special needs** (accessibility, allergies, cribs…), **special instructions** (printed for the guest) and
-    **comments** (staff only)
+    **comments** (staff only). A new reservation starts with its location's special needs and instructions (set under
+    Admin › Stay defaults); change them as needed. Picking another location swaps them, unless you've changed them.
   - the **event** it belongs to (a wedding, retreat, show…); picking the event fills in its dates (arrive on its first
     day, leave on its last), which you can still change; **+ Add an event** adds a new one in a small box without leaving the
     reservation (it's picked straight away and nothing typed is lost)
@@ -50,7 +51,8 @@ completely on its own: its own website, its own database and its own logins.
   A location with no rooms set up is rented only as a whole: it gets one "Whole location" line for its buy-outs.
 - **Admin** works like Event Master Plus: a home page of tiles (Your business: Business details, Logins; Lodging:
   Locations and rooms, Checklists, Stay defaults) and the same menu down the side of every Admin page. **Stay defaults**
-  is set per location: check-in and checkout times, lodging tax, and the note on its confirmations.
+  is set per location: check-in and checkout times, lodging tax, the note on its confirmations, and the special needs and
+  instructions each new reservation there starts with.
 - **Check-in** (menu): pick a location (or All; remembered on that computer) and a day (‹ Today ›). **Checking in** lists
   everyone arriving (and anyone due earlier who isn't checked in yet) with their rooms, who's in them, special needs,
   comments and balance. Each guest's steps run in order: **Pre-check-in** (shows "2 of 8" or **Completed**; click to

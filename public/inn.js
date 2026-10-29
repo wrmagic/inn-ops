@@ -26,8 +26,17 @@
     const t = form.querySelector('[data-rooms-title]'); if (t) t.textContent = buy ? 'Rooms and who’s in them' : 'Rooms';
     const h = form.querySelector('[data-kind-hint]'); if (h) h.textContent = buy ? 'The whole location is booked; fill in who’s staying in each room.' : 'Tick the rooms, and who’s staying in each. Rooms already booked for those nights are marked.';
   };
+  // Special needs and instructions start with the location's; switching location swaps them unless they were changed
+  let prevOpt = locSel.selectedOptions[0];
+  const swapDefault = (el, key, from, to) => {
+    if (!el) return; const was = (from && from.dataset[key]) || '';
+    if (el.value.trim() === '' || el.value === was) el.value = to.dataset[key] || '';
+  };
   locSel.addEventListener('change', () => {
     const o = locSel.selectedOptions[0];
+    swapDefault(form.querySelector('[data-res-needs]'), 'needs', prevOpt, o);
+    swapDefault(form.querySelector('[data-res-instr]'), 'instr', prevOpt, o);
+    prevOpt = o;
     if (!touchedTimes) { if (tin) tin.value = o.dataset.in || tin.value; if (tout) tout.value = o.dataset.out || tout.value; }
     const br = form.querySelector('input[name=buyout_rate]'); if (br && o.dataset.buyout) br.value = o.dataset.buyout;
     const bw = form.querySelector('input[name=buyout_wrate]'); if (bw && o.dataset.buyoutW) bw.value = o.dataset.buyoutW;

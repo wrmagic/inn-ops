@@ -71,7 +71,7 @@ module.exports = (r, { db }) => {
           <label><input type="radio" name="kind" value="buyout"${x.kind === 'buyout' ? raw(' checked') : ''}> Full buy-out (the whole location)</label></fieldset>
         <div class="grid g4">
           ${field('Guest (who the reservation is for)', guestPicker('guest_id', guestOf(x), { placeholder: 'Search guests (or add a new one)' }), { cls: 'span2' })}
-          ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}" data-buyout-w="${centsInput(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
+          ${field('Location', html`<select name="location_id" data-res-loc>${locs.map((l) => html`<option value="${l.id}" data-in="${timesFor(ctx, l).in}" data-out="${timesFor(ctx, l).out}" data-buyout="${centsInput(l.buyout_rate_cents)}" data-buyout-w="${centsInput(l.buyout_weekend_rate_cents ?? l.buyout_rate_cents)}" data-needs="${l.default_needs || ''}" data-instr="${l.default_instructions || ''}"${l.id === loc.id ? raw(' selected') : ''}>${l.name}</option>`)}</select>`)}
           ${field('Event', html`<select name="event_id" data-res-event><option value="">None</option>${events.map((e) => html`<option value="${e.id}" data-start="${e.start_date || ''}" data-end="${e.end_date || ''}"${e.id === x.event_id ? raw(' selected') : ''}>${e.name}${e.start_date ? ` (${dateFmt(e.start_date)}${e.end_date && e.end_date !== e.start_date ? ` – ${dateFmt(e.end_date)}` : ''})` : ''}</option>`)}</select>`, { hint: html`<a href="/events/new" target="_blank" rel="noopener" data-quick-event>+ Add an event</a>` })}
           ${field('Arrives', input('arrive', x.arrive, { type: 'date', required: true }))}
           ${field('Departs', input('depart', x.depart, { type: 'date', required: true }))}
@@ -100,8 +100,8 @@ module.exports = (r, { db }) => {
     : html`<p class="muted">${l.name} has no rooms set up, so it’s booked as a whole: choose <b>Full buy-out</b> above. To rent its rooms one at a time, add them under <a href="/admin/locations/${l.id}">Admin › Locations and rooms</a>.</p>`}</div>`; })}
       </section>
       <section class="panel"><h2>Needs and notes</h2>
-        ${field('Special needs', textarea('special_needs', x.special_needs, { rows: 2, placeholder: 'Accessibility, allergies, crib, early check-in…' }))}
-        ${field('Special instructions', textarea('special_instructions', x.special_instructions, { rows: 2, placeholder: 'For the guest: arrival, keys, parking. Printed on the confirmation.' }))}
+        ${field('Special needs', textarea('special_needs', x.id ? x.special_needs : x.special_needs ?? loc.default_needs, { rows: 2, 'data-res-needs': '', placeholder: 'Accessibility, allergies, crib, early check-in…' }))}
+        ${field('Special instructions', textarea('special_instructions', x.id ? x.special_instructions : x.special_instructions ?? loc.default_instructions, { rows: 2, 'data-res-instr': '', placeholder: 'For the guest: arrival, keys, parking. Printed on the confirmation.' }))}
         ${field('Comments about the rental', textarea('comments', x.comments, { rows: 3, placeholder: 'For staff only.' }))}
         ${(() => { const ecs = db.all('SELECT * FROM location_contacts ORDER BY location_id, sort, id'); const cur = x.emergency_contact_id || (ecs.find((c) => c.location_id === loc.id) || {}).id;
           return field('Emergency contact', html`<select name="emergency_contact_id" data-res-ec><option value="">None</option>${ecs.map((c) => html`<option value="${c.id}" data-loc="${c.location_id}"${c.id === cur ? raw(' selected') : ''}${c.location_id === loc.id ? '' : raw(' hidden')}>${c.name}${c.role ? ` (${c.role})` : ''}${c.phone ? ` · ${c.phone}` : ''}</option>`)}</select>`,
