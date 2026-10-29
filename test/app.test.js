@@ -278,6 +278,11 @@ test('a location with no rooms is booked whole and shows everywhere', async () =
   const house = await get('/reports/house?date=2027-06-02');
   assert.match(house.text, /Whole Barn/);
   assert.match(house.text, /Pat/);
+  // one location only
+  const barn = db.get("SELECT id FROM locations WHERE name='Whole Barn'").id;
+  const only = (await get(`/reports/house?date=2027-06-02&location=${barn}`)).text;
+  assert.match(only, /Room list · Whole Barn/); assert.doesNotMatch(only, /<h2>Inn<\/h2>/);
+  assert.match(house.text, /<h2>Inn<\/h2>/);
   // a second buy-out on the same nights is refused
   const again = await post('/reservations/new', booking().map(([k, v]) => (k === 'kind' ? [k, 'buyout'] : k === 'location_id' ? [k, String(wid)] : k === 'arrive' ? [k, '2027-06-02'] : k === 'depart' ? [k, '2027-06-04'] : [k, v])));
   assert.equal(again.status, 409);

@@ -64,7 +64,8 @@ completely on its own: its own website, its own database and its own logins.
   has an "Add a reservation" link that fills in the event, dates and location.
 - **Lists in pages**: the Reservations and Guests lists show 20 at a time, with Previous / Next and Show 20, 50, 100
   or All at the bottom. Your choice is remembered for each list on that computer.
-- **Reports**: arrivals and departures for a date range, and a house list (who's in every room on a night). All print.
+- **Reports**: arrivals and departures for a date range, and a room list (who's in every room on a night; pick one
+  location or All locations). All print.
 - **Phone version** (`/m`, or **Phone version** at the bottom of the menu): today's arrivals, departures and who's
   staying, with big Check in and Check out buttons; flip to other days with ‹ ›; **Check-in** (the same as the Check-in
   page: pick the location and day, then each guest's pre-check-in list, check in, checkout list and check out, with

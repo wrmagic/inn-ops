@@ -31,9 +31,10 @@ module.exports = (r, { db }) => {
   r.get('/reports/house', (ctx) => {
     const today = todayIn(ctx.settings.timezone); const night = isDate(ctx.query.date) ? ctx.query.date : today;
     const busy = R.busyRooms(db, night, addDays(night, 1));
-    ctx.html(layout(ctx, { title: 'Room list', active: '/reports', body: html`${tools(ctx, html`<form method="get" class="inline-filter"><label>Night of <input type="date" name="date" value="${night}" data-autosubmit></label></form>`)}
-      <article class="report-doc"><header class="rd-head"><div><div class="rd-org">${ctx.settings.name}</div><div class="rd-kind">Room list</div></div><div class="rd-meta">Night of ${dateFmt(night, 'long')}</div></header>
-        ${locs().map((l) => { const rooms = db.all('SELECT * FROM rooms WHERE location_id=? AND active=1 ORDER BY sort, name', l.id);
+    const all = locs(); const one = all.find((l) => l.id === int(ctx.query.location));
+    ctx.html(layout(ctx, { title: 'Room list', active: '/reports', body: html`${tools(ctx, html`<form method="get" class="inline-filter"><label>Night of <input type="date" name="date" value="${night}" data-autosubmit></label>${select('location', all, one ? one.id : '', { blank: 'All locations', 'aria-label': 'Location', 'data-autosubmit': true })}<button class="btn">Show</button></form>`)}
+      <article class="report-doc"><header class="rd-head"><div><div class="rd-org">${ctx.settings.name}</div><div class="rd-kind">Room list${one ? ` · ${one.name}` : ''}</div></div><div class="rd-meta">Night of ${dateFmt(night, 'long')}</div></header>
+        ${(one ? [one] : all).map((l) => { const rooms = db.all('SELECT * FROM rooms WHERE location_id=? AND active=1 ORDER BY sort, name', l.id);
           if (!rooms.length) { // sold only as a whole: one line for the location
             const x = db.get(`SELECT r.* FROM reservations r WHERE ${R.LIVE} AND r.location_id=? AND r.arrive<=? AND r.depart>?`, l.id, night, night);
             return html`<section class="rd-sec"><h2>${l.name}</h2><table class="rd-table"><thead><tr><th>Booked as</th><th>Guest</th><th>Guests</th><th>Stay</th><th>Special needs</th></tr></thead><tbody>
